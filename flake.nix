@@ -18,7 +18,7 @@
       in {
         devShell =
           pkgs.mkShell {
-            LD_LIBRARY_PATH = "${pkgs.vulkan-loader}/lib";
+            LD_LIBRARY_PATH = "${pkgs.vulkan-loader}/lib:${pkgs.udev}/lib:${pkgs.alsaLib}/lib";
             buildInputs = [
               (pkgs.rust-bin.stable.${rustVersion}.default.override {
                 extensions = [
@@ -39,9 +39,10 @@
               pkgs.xorg.libXrandr
               pkgs.xorg.libXi
               pkgs.alsaLib
-              pkgs.udev.dev
+              pkgs.udev
 
               pkgs.mold
+              pkgs.clang_14
             ];
           };
       }

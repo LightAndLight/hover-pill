@@ -8,6 +8,10 @@ use bevy::{
     prelude::*,
 };
 use bevy_atmosphere::prelude::{AtmosphereCamera, AtmospherePlugin};
+use bevy_rapier3d::{
+    prelude::{Collider, LockedAxes, NoUserData, RapierPhysicsPlugin, RigidBody},
+    render::RapierDebugRenderPlugin,
+};
 
 #[derive(Component)]
 struct Speed {
@@ -29,9 +33,7 @@ struct Controlled {
 }
 
 #[derive(Component)]
-struct Camera {
-    value: Entity,
-}
+struct Camera;
 
 #[derive(Component)]
 struct Zoom;
@@ -41,28 +43,6 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let camera = commands
-        .spawn_bundle(Camera3dBundle {
-            projection: PerspectiveProjection {
-                fov: (60.0 / 360.0) * 2.0 * PI,
-                ..default()
-            }
-            .into(),
-            transform: Transform::from_xyz(-5.0, 4.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        })
-        .insert(AtmosphereCamera(None))
-        .insert(Forward {
-            value: Vec3::ZERO
-                - Vec3 {
-                    x: -5.0,
-                    y: 4.0,
-                    z: 0.0,
-                },
-        })
-        .insert(Zoom)
-        .id();
-
     commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
@@ -71,9 +51,12 @@ fn setup(
                 ..default()
             })),
             material: materials.add(Color::rgb(0.8, 0.7, 0.3).into()),
-            transform: Transform::from_xyz(0.0, 1.0, 0.0),
+            transform: Transform::from_xyz(0.0, 3.0, 0.0),
             ..default()
         })
+        .insert(Collider::capsule_y(0.5, 0.5))
+        .insert(RigidBody::Dynamic)
+        .insert(LockedAxes::ROTATION_LOCKED)
         .insert(Forward { value: Vec3::X })
         .insert(Speed { value: 2.0 })
         .insert(Controlled {
@@ -83,38 +66,68 @@ fn setup(
             left: false,
             right: false,
         })
-        .insert(Camera { value: camera });
+        // .insert(Camera { value: camera })
+        .with_children(|parent| {
+            let camera_looking_at = Vec3::new(0.0, 1.0, 0.0);
 
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 500.0 })),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        ..default()
-    });
+            let transform =
+                Transform::from_xyz(-5.0, 4.0, 0.0).looking_at(camera_looking_at, Vec3::Y);
 
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(1.5, 0.5, 1.5),
-        ..default()
-    });
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(1.5, 0.5, -1.5),
-        ..default()
-    });
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(-1.5, 0.5, 1.5),
-        ..default()
-    });
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(-1.5, 0.5, -1.5),
-        ..default()
-    });
+            parent
+                .spawn_bundle(Camera3dBundle {
+                    projection: PerspectiveProjection {
+                        fov: (60.0 / 360.0) * 2.0 * PI,
+                        ..default()
+                    }
+                    .into(),
+                    transform,
+                    ..default()
+                })
+                .insert(Camera)
+                .insert(AtmosphereCamera(None))
+                .insert(Zoom);
+        });
+
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 500.0 })),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            ..default()
+        })
+        .insert(Collider::cuboid(500.0, 0.1, 500.0));
+
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+            transform: Transform::from_xyz(1.5, 0.5, 1.5),
+            ..default()
+        })
+        .insert(Collider::cuboid(0.5, 0.5, 0.5));
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+            transform: Transform::from_xyz(1.5, 0.5, -1.5),
+            ..default()
+        })
+        .insert(Collider::cuboid(0.5, 0.5, 0.5));
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+            transform: Transform::from_xyz(-1.5, 0.5, 1.5),
+            ..default()
+        })
+        .insert(Collider::cuboid(0.5, 0.5, 0.5));
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+            material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+            transform: Transform::from_xyz(-1.5, 0.5, -1.5),
+            ..default()
+        })
+        .insert(Collider::cuboid(0.5, 0.5, 0.5));
 
     commands.spawn_bundle(DirectionalLightBundle {
         transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0 + 0.05)), // Transform::from_xyz(0.0, 10.0, 0.0),
@@ -128,18 +141,11 @@ fn setup(
 
 fn move_entities(
     time: Res<Time>,
-    mut controlled_query: Query<(
-        &Controlled,
-        &Speed,
-        &Forward,
-        &mut Transform,
-        Option<&Camera>,
-    )>,
-    mut camera_query: Query<&mut Transform, Without<Controlled>>,
+    mut controlled_query: Query<(&Controlled, &Speed, &Forward, &mut Transform)>,
 ) {
     let delta_seconds = time.delta_seconds();
 
-    for (controlled, speed, forward, mut transform, camera) in controlled_query.iter_mut() {
+    for (controlled, speed, forward, mut transform) in controlled_query.iter_mut() {
         let mut movement = Vec3::ZERO;
 
         if controlled.forward {
@@ -161,11 +167,6 @@ fn move_entities(
         }
 
         transform.translation += movement;
-
-        if let Some(camera) = camera {
-            let mut camera_transform = camera_query.get_mut(camera.value).unwrap();
-            camera_transform.translation += movement;
-        }
     }
 }
 
@@ -207,7 +208,7 @@ fn handle_keys(keys: Res<Input<KeyCode>>, mut query: Query<&mut Controlled>) {
 
 fn scroll_zoom(
     mut scroll_events: EventReader<MouseWheel>,
-    mut query: Query<(&Forward, &mut Transform), With<Zoom>>,
+    mut query: Query<&mut Transform, With<Zoom>>,
 ) {
     let scroll_amount: f32 = scroll_events
         .iter()
@@ -220,8 +221,9 @@ fn scroll_zoom(
         })
         .sum();
 
-    for (forward, mut transform) in query.iter_mut() {
-        transform.translation += 0.08 * scroll_amount * forward.value;
+    for mut transform in query.iter_mut() {
+        let translation = transform.translation;
+        transform.translation += 0.08 * scroll_amount * -translation;
     }
 }
 
@@ -243,13 +245,8 @@ fn set_controlled_rotating(
 
 fn rotate_controlled(
     mut mouse_motion_events: EventReader<MouseMotion>,
-    mut query: Query<(
-        &Controlled,
-        &mut Forward,
-        &mut Transform,
-        Option<&mut Camera>,
-    )>,
-    mut camera_query: Query<(&mut Forward, &mut Transform), Without<Controlled>>,
+    mut query: Query<(&Controlled, &mut Forward, &mut Transform, &Children)>,
+    mut camera_query: Query<&mut Transform, (With<Camera>, Without<Controlled>)>,
 ) {
     let delta: Vec2 = mouse_motion_events
         .iter()
@@ -257,22 +254,18 @@ fn rotate_controlled(
             delta + mouse_motion_event.delta
         });
 
-    for (controlled, mut forward, mut transform, camera) in query.iter_mut() {
+    for (controlled, mut forward, mut transform, children) in query.iter_mut() {
         if controlled.rotating {
-            let right = forward.value.cross(Vec3::Y);
-
             let rotation = Quat::from_rotation_y(0.005 * -delta.x);
             forward.value = rotation * forward.value;
             transform.rotate(rotation);
 
-            if let Some(camera) = camera {
-                let (mut camera_forward, mut camera_transform) =
-                    camera_query.get_mut(camera.value).unwrap();
+            for child in children.iter() {
+                if let Ok(mut camera_transform) = camera_query.get_mut(*child) {
+                    let camera_rotation = Quat::from_axis_angle(Vec3::Z, 0.005 * -delta.y);
 
-                let camera_rotation = rotation * Quat::from_axis_angle(right, 0.005 * -delta.y);
-
-                camera_transform.rotate_around(transform.translation, camera_rotation);
-                camera_forward.value = camera_rotation * camera_forward.value;
+                    camera_transform.rotate_around(Vec3::ZERO, camera_rotation);
+                }
             }
         }
     }
@@ -282,6 +275,8 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(AtmospherePlugin)
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugin(RapierDebugRenderPlugin::default())
         .add_startup_system(setup)
         .add_system(move_entities)
         .add_system(scroll_zoom)
