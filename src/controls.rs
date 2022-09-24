@@ -2,13 +2,8 @@ use bevy::{
     input::{mouse::MouseButtonInput, ButtonState},
     prelude::*,
 };
-use bevy_rapier3d::prelude::*;
 
-use crate::{
-    fuel::Fuel,
-    hover::{end_hover, start_hover},
-    jump::JumpImpulse,
-};
+use crate::hover::HoverEvent;
 
 #[derive(Component)]
 pub struct Controlled {
@@ -17,7 +12,24 @@ pub struct Controlled {
     pub backward: bool,
     pub left: bool,
     pub right: bool,
-    pub hovering: bool,
+}
+
+impl Controlled {
+    pub fn new() -> Self {
+        Controlled {
+            rotating: false,
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+        }
+    }
+}
+
+impl Default for Controlled {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Component)]
@@ -66,32 +78,13 @@ fn handle_movement(keys: Res<Input<KeyCode>>, mut query: Query<&mut Controlled>)
     }
 }
 
-fn handle_jump(
-    keys: Res<Input<KeyCode>>,
-    mut query: Query<(
-        &mut Controlled,
-        &Fuel,
-        &JumpImpulse,
-        &mut ExternalImpulse,
-        &mut ExternalForce,
-    )>,
-) {
-    for (mut controlled, fuel, jump_impulse, mut external_impulse, mut external_force) in
-        query.iter_mut()
-    {
-        if keys.just_pressed(KeyCode::Space) {
-            start_hover(
-                fuel,
-                &mut controlled,
-                &mut external_impulse,
-                jump_impulse,
-                &mut external_force,
-            );
-        }
+fn handle_jump(keys: Res<Input<KeyCode>>, mut hover_event: EventWriter<HoverEvent>) {
+    if keys.just_pressed(KeyCode::Space) {
+        hover_event.send(HoverEvent::Start);
+    }
 
-        if keys.just_released(KeyCode::Space) {
-            end_hover(&mut controlled, &mut external_impulse, &mut external_force);
-        }
+    if keys.just_released(KeyCode::Space) {
+        hover_event.send(HoverEvent::Stop);
     }
 }
 

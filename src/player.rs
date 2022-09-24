@@ -5,6 +5,7 @@ use crate::{
     camera::CameraPlugin,
     controls::{Controlled, ControlsPlugin, Forward, Speed},
     fuel::Fuel,
+    hover::Hovering,
     jump::JumpImpulse,
 };
 
@@ -41,15 +42,9 @@ pub fn setup(
         .insert(LockedAxes::ROTATION_LOCKED)
         .insert(Forward { value: Vec3::X })
         .insert(Speed { value: 2.0 })
-        .insert(Controlled {
-            rotating: false,
-            forward: false,
-            backward: false,
-            left: false,
-            right: false,
-            hovering: false,
-        })
+        .insert(Controlled::default())
         .insert(Fuel { value: 1.0 })
+        .insert(Hovering { value: false })
         .with_children(|parent| {
             crate::camera::setup(parent);
         });
