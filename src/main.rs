@@ -6,16 +6,19 @@ use bevy::{
         ButtonState,
     },
     prelude::*,
+    winit::WinitSettings,
 };
 use bevy_atmosphere::prelude::{AtmosphereCamera, AtmospherePlugin};
-use bevy_rapier3d::{
-    prelude::{Collider, LockedAxes, NoUserData, RapierPhysicsPlugin, RigidBody},
-    render::RapierDebugRenderPlugin,
-};
+use bevy_rapier3d::{prelude::*, render::RapierDebugRenderPlugin};
 
 #[derive(Component)]
 struct Speed {
     value: f32,
+}
+
+#[derive(Component)]
+struct JumpImpulse {
+    value: Vec3,
 }
 
 #[derive(Component)]
@@ -30,6 +33,7 @@ struct Controlled {
     backward: bool,
     left: bool,
     right: bool,
+    hovering: bool,
 }
 
 #[derive(Component)]
@@ -38,24 +42,54 @@ struct Camera;
 #[derive(Component)]
 struct Zoom;
 
+#[derive(Component)]
+struct PlayerDensityText;
+
+#[derive(Component)]
+struct PlayerJumpImpulseText;
+
+#[derive(Component)]
+struct Fuel {
+    value: f32,
+}
+
+#[derive(Component)]
+struct FuelBar;
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
+    rapier_config: Res<RapierConfiguration>,
 ) {
+    let capsule_radius = 0.5;
+    let capsule_depth = 2.0 * capsule_radius;
+
+    let initial_jump_impulse = 5. * Vec3::Y;
+
+    info!("gravity: {}", rapier_config.gravity);
+
     commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
-                radius: 0.5,
-                depth: 1.0,
+                radius: capsule_radius,
+                depth: capsule_depth,
                 ..default()
             })),
             material: materials.add(Color::rgb(0.8, 0.7, 0.3).into()),
-            transform: Transform::from_xyz(0.0, 3.0, 0.0),
+            transform: Transform::from_xyz(0.0, 3.0 * capsule_depth, 0.0),
             ..default()
         })
-        .insert(Collider::capsule_y(0.5, 0.5))
+        .insert(Collider::capsule_y(capsule_depth / 2.0, capsule_radius))
+        .insert(ActiveEvents::COLLISION_EVENTS)
         .insert(RigidBody::Dynamic)
+        .insert(ColliderMassProperties::Density(1.0))
+        .insert(ExternalForce::default())
+        .insert(ExternalImpulse::default())
+        .insert(JumpImpulse {
+            value: initial_jump_impulse,
+        })
         .insert(LockedAxes::ROTATION_LOCKED)
         .insert(Forward { value: Vec3::X })
         .insert(Speed { value: 2.0 })
@@ -65,7 +99,9 @@ fn setup(
             backward: false,
             left: false,
             right: false,
+            hovering: false,
         })
+        .insert(Fuel { value: 1.0 })
         // .insert(Camera { value: camera })
         .with_children(|parent| {
             let camera_looking_at = Vec3::new(0.0, 1.0, 0.0);
@@ -129,6 +165,23 @@ fn setup(
         })
         .insert(Collider::cuboid(0.5, 0.5, 0.5));
 
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::UVSphere {
+                radius: 0.25,
+                sectors: 4,
+                stacks: 3,
+            })),
+            material: materials.add(Color::rgb(0.4, 0.4, 1.).into()),
+            transform: Transform::from_translation(Vec3::new(2., 2., 2.))
+                .with_rotation(Quat::from_rotation_x(PI / 2.)),
+            ..default()
+        })
+        .insert(Collider::ball(0.25))
+        .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(Sensor)
+        .insert(RefuelBall { amount: 0.20 });
+
     commands.spawn_bundle(DirectionalLightBundle {
         transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0 + 0.05)), // Transform::from_xyz(0.0, 10.0, 0.0),
         directional_light: DirectionalLight {
@@ -137,6 +190,58 @@ fn setup(
         },
         ..default()
     });
+
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Px(300.0), Val::Px(30.0)),
+                position_type: PositionType::Absolute,
+                position: UiRect {
+                    top: Val::Px(10.0),
+                    left: Val::Px(10.0),
+                    ..default()
+                },
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            color: Color::NONE.into(),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                        position_type: PositionType::Absolute,
+                        border: UiRect::all(Val::Px(2.0)),
+                        ..default()
+                    },
+                    color: Color::BLACK.into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent
+                        .spawn_bundle(NodeBundle {
+                            style: Style {
+                                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                                ..default()
+                            },
+                            color: Color::rgb(0.4, 0.4, 1.0).into(),
+                            ..default()
+                        })
+                        .insert(FuelBar);
+                });
+
+            parent.spawn_bundle(TextBundle::from_section(
+                "fuel",
+                TextStyle {
+                    font: asset_server.load("fonts/DejaVuSansMono.ttf"),
+                    font_size: 20.0,
+                    color: Color::WHITE,
+                },
+            ));
+        });
 }
 
 fn move_entities(
@@ -170,8 +275,20 @@ fn move_entities(
     }
 }
 
-fn handle_keys(keys: Res<Input<KeyCode>>, mut query: Query<&mut Controlled>) {
-    for mut controlled in query.iter_mut() {
+fn handle_keys(
+    keys: Res<Input<KeyCode>>,
+    // mut query: Query<(&mut Controlled, &JumpImpulse, &mut ExternalImpulse)>,
+    mut query: Query<(
+        &mut Controlled,
+        &Fuel,
+        &JumpImpulse,
+        &mut ExternalImpulse,
+        &mut ExternalForce,
+    )>,
+) {
+    for (mut controlled, fuel, jump_impulse, mut external_impulse, mut external_force) in
+        query.iter_mut()
+    {
         if keys.just_pressed(KeyCode::W) {
             controlled.forward = true;
         }
@@ -202,6 +319,85 @@ fn handle_keys(keys: Res<Input<KeyCode>>, mut query: Query<&mut Controlled>) {
 
         if keys.just_released(KeyCode::D) {
             controlled.right = false;
+        }
+
+        if keys.just_pressed(KeyCode::Space) {
+            start_hover(
+                fuel,
+                &mut controlled,
+                &mut external_impulse,
+                jump_impulse,
+                &mut external_force,
+            );
+        }
+
+        if keys.just_released(KeyCode::Space) {
+            end_hover(&mut controlled, &mut external_force);
+        }
+    }
+}
+
+fn start_hover(
+    fuel: &Fuel,
+    controlled: &mut Controlled,
+    external_impulse: &mut ExternalImpulse,
+    jump_impulse: &JumpImpulse,
+    external_force: &mut ExternalForce,
+) {
+    if fuel.value > 0.0 {
+        controlled.hovering = true;
+
+        external_impulse.impulse = jump_impulse.value;
+        external_force.force = 12. * Vec3::Y;
+    }
+}
+
+fn end_hover(controlled: &mut Controlled, external_force: &mut ExternalForce) {
+    controlled.hovering = false;
+    external_force.force = Vec3::ZERO;
+}
+
+struct FuelChanged {
+    new_value: f32,
+}
+
+fn use_fuel_to_hover(
+    time: Res<Time>,
+    mut query: Query<(&mut Controlled, &mut Fuel, &mut ExternalForce)>,
+    mut fuel_changed: EventWriter<FuelChanged>,
+) {
+    for (mut controlled, mut fuel, mut external_force) in &mut query {
+        if controlled.hovering {
+            subtract_fuel(&mut fuel, time.delta_seconds() * 0.1, &mut fuel_changed);
+
+            if fuel.value <= 0. {
+                end_hover(&mut controlled, &mut external_force)
+            }
+        }
+    }
+}
+
+fn subtract_fuel(fuel: &mut Mut<Fuel>, amount: f32, fuel_changed: &mut EventWriter<FuelChanged>) {
+    fuel.value = (fuel.value - amount).clamp(0.0, 1.0);
+    fuel_changed.send(FuelChanged {
+        new_value: fuel.value,
+    });
+}
+
+fn add_fuel(fuel: &mut Mut<Fuel>, amount: f32, fuel_changed: &mut EventWriter<FuelChanged>) {
+    fuel.value = (fuel.value + amount).clamp(0.0, 1.0);
+    fuel_changed.send(FuelChanged {
+        new_value: fuel.value,
+    });
+}
+
+fn update_fuel_bar(
+    mut fuel_changed: EventReader<FuelChanged>,
+    mut query: Query<&mut Style, With<FuelBar>>,
+) {
+    for fuel_changed in fuel_changed.iter() {
+        for mut style in &mut query {
+            style.size.width = Val::Percent(fuel_changed.new_value * 100.0);
         }
     }
 }
@@ -271,17 +467,59 @@ fn rotate_controlled(
     }
 }
 
+fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
+    for collision_event in collision_events.iter() {
+        debug!("collision event: {:?}", collision_event);
+    }
+}
+
+#[derive(Component)]
+struct RefuelBall {
+    amount: f32,
+}
+
+fn consume_refuel_balls(
+    mut commands: Commands,
+    mut collision_events: EventReader<CollisionEvent>,
+    mut fuel_query: Query<&mut Fuel, Without<RefuelBall>>,
+    ball_query: Query<&RefuelBall>,
+    mut fuel_changed: EventWriter<FuelChanged>,
+) {
+    for collision_event in collision_events.iter() {
+        if let CollisionEvent::Started(entity1, entity2, _) = collision_event {
+            let (fuel_entity, ball_entity) = if fuel_query.contains(*entity1) {
+                (*entity1, *entity2)
+            } else {
+                (*entity2, *entity1)
+            };
+
+            if let (Ok(mut fuel), Ok(refuel_ball)) =
+                (fuel_query.get_mut(fuel_entity), ball_query.get(ball_entity))
+            {
+                add_fuel(&mut fuel, refuel_ball.amount, &mut fuel_changed);
+                commands.entity(ball_entity).despawn();
+            }
+        }
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(AtmospherePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
+        .insert_resource(WinitSettings::game())
+        .add_event::<FuelChanged>()
         .add_startup_system(setup)
         .add_system(move_entities)
         .add_system(scroll_zoom)
         .add_system(rotate_controlled)
         .add_system(handle_keys)
         .add_system(set_controlled_rotating)
+        .add_system(use_fuel_to_hover)
+        .add_system(update_fuel_bar)
+        .add_system(display_collision_events)
+        .add_system(consume_refuel_balls)
         .run()
 }
