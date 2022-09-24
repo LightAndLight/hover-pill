@@ -3,12 +3,13 @@ name = "learn-bevy"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 bevy = "0.8.1"
 bevy_atmosphere = "0.4.1"
 bevy_rapier3d = { version = "0.16.2", features = ["debug-render"] }
+
+[lib]
+name = "learn_bevy"
 
 [profile.dev]
 opt-level = 1
