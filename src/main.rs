@@ -43,12 +43,6 @@ struct Camera;
 struct Zoom;
 
 #[derive(Component)]
-struct PlayerDensityText;
-
-#[derive(Component)]
-struct PlayerJumpImpulseText;
-
-#[derive(Component)]
 struct Fuel {
     value: f32,
 }
@@ -126,11 +120,12 @@ fn setup(
 
     commands
         .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 500.0 })),
+            mesh: meshes.add(Mesh::from(shape::Box::new(500.0, 0.1, 500.0))),
             material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            transform: Transform::from_translation(Vec3::new(0., -0.05, 0.)),
             ..default()
         })
-        .insert(Collider::cuboid(500.0, 0.1, 500.0));
+        .insert(Collider::cuboid(250.0, 0.05, 250.0));
 
     commands
         .spawn_bundle(PbrBundle {
@@ -183,9 +178,19 @@ fn setup(
         .insert(RefuelBall { amount: 0.20 });
 
     commands.spawn_bundle(DirectionalLightBundle {
-        transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0 + 0.05)), // Transform::from_xyz(0.0, 10.0, 0.0),
+        transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
         directional_light: DirectionalLight {
             illuminance: 10000.0,
+            shadows_enabled: true,
+            shadow_projection: OrthographicProjection {
+                left: -10.,
+                right: 10.,
+                bottom: -10.,
+                top: 10.,
+                near: -10.,
+                far: 10.,
+                ..default()
+            },
             ..default()
         },
         ..default()
@@ -332,7 +337,7 @@ fn handle_keys(
         }
 
         if keys.just_released(KeyCode::Space) {
-            end_hover(&mut controlled, &mut external_force);
+            end_hover(&mut controlled, &mut external_impulse, &mut external_force);
         }
     }
 }
@@ -344,7 +349,9 @@ fn start_hover(
     jump_impulse: &JumpImpulse,
     external_force: &mut ExternalForce,
 ) {
+    debug!("start_hover: fuel: {:?}", fuel.value);
     if fuel.value > 0.0 {
+        debug!("start_hover: hovering");
         controlled.hovering = true;
 
         external_impulse.impulse = jump_impulse.value;
@@ -352,8 +359,13 @@ fn start_hover(
     }
 }
 
-fn end_hover(controlled: &mut Controlled, external_force: &mut ExternalForce) {
+fn end_hover(
+    controlled: &mut Controlled,
+    external_impulse: &mut ExternalImpulse,
+    external_force: &mut ExternalForce,
+) {
     controlled.hovering = false;
+    external_impulse.impulse = Vec3::ZERO;
     external_force.force = Vec3::ZERO;
 }
 
@@ -363,15 +375,20 @@ struct FuelChanged {
 
 fn use_fuel_to_hover(
     time: Res<Time>,
-    mut query: Query<(&mut Controlled, &mut Fuel, &mut ExternalForce)>,
+    mut query: Query<(
+        &mut Controlled,
+        &mut Fuel,
+        &mut ExternalImpulse,
+        &mut ExternalForce,
+    )>,
     mut fuel_changed: EventWriter<FuelChanged>,
 ) {
-    for (mut controlled, mut fuel, mut external_force) in &mut query {
+    for (mut controlled, mut fuel, mut external_impulse, mut external_force) in &mut query {
         if controlled.hovering {
             subtract_fuel(&mut fuel, time.delta_seconds() * 0.1, &mut fuel_changed);
 
             if fuel.value <= 0. {
-                end_hover(&mut controlled, &mut external_force)
+                end_hover(&mut controlled, &mut external_impulse, &mut external_force)
             }
         }
     }
@@ -424,15 +441,23 @@ fn scroll_zoom(
 }
 
 fn set_controlled_rotating(
+    mut windows: ResMut<Windows>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut query: Query<&mut Controlled>,
 ) {
     for mouse_button_event in mouse_button_events.iter() {
         if let MouseButton::Right = mouse_button_event.button {
+            let window = windows.primary_mut();
             for mut controlled in query.iter_mut() {
-                controlled.rotating = match mouse_button_event.state {
-                    ButtonState::Pressed => true,
-                    ButtonState::Released => false,
+                match mouse_button_event.state {
+                    ButtonState::Pressed => {
+                        controlled.rotating = true;
+                        window.set_cursor_visibility(false);
+                    }
+                    ButtonState::Released => {
+                        controlled.rotating = false;
+                        window.set_cursor_visibility(true);
+                    }
                 };
             }
         }
