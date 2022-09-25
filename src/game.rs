@@ -34,6 +34,7 @@ fn show_complete_screen_on_goal(
 ) {
     for event in player_hit.iter() {
         if let PlayerHit::Goal = event {
+            debug!("player hit goal");
             complete_screen(&mut commands, &asset_server)
         }
     }

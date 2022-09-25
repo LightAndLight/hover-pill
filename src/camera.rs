@@ -12,22 +12,32 @@ pub struct Camera;
 #[derive(Component)]
 pub struct Zoom;
 
-pub fn setup(parent: &mut ChildBuilder) {
-    let camera_looking_at = Vec3::new(0.0, 1.0, 0.0);
-    let transform = Transform::from_xyz(-5.0, 4.0, 0.0).looking_at(camera_looking_at, Vec3::Y);
-    parent
-        .spawn_bundle(Camera3dBundle {
-            projection: PerspectiveProjection {
-                fov: (60.0 / 360.0) * 2.0 * PI,
+#[derive(Bundle)]
+pub struct CameraBundle {
+    #[bundle]
+    camera3d_bundle: Camera3dBundle,
+    atmosphere_camera: AtmosphereCamera,
+    zoom: Zoom,
+    camera: Camera,
+}
+
+impl CameraBundle {
+    pub fn new(transform: Transform) -> Self {
+        Self {
+            camera3d_bundle: Camera3dBundle {
+                projection: PerspectiveProjection {
+                    fov: (60.0 / 360.0) * 2.0 * PI,
+                    ..default()
+                }
+                .into(),
+                transform: transform.looking_at(Vec3::Y, Vec3::Y),
                 ..default()
-            }
-            .into(),
-            transform,
-            ..default()
-        })
-        .insert(Camera)
-        .insert(AtmosphereCamera(None))
-        .insert(Zoom);
+            },
+            atmosphere_camera: AtmosphereCamera(None),
+            zoom: Zoom,
+            camera: Camera,
+        }
+    }
 }
 
 pub fn scroll_zoom(

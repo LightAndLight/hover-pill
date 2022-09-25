@@ -2,7 +2,7 @@ use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::prelude::*;
 
 use crate::{
-    camera::CameraPlugin,
+    camera::{CameraBundle, CameraPlugin},
     controls::{Controlled, ControlsPlugin, Forward, Speed},
     fuel::Fuel,
     hover::Hovering,
@@ -46,7 +46,7 @@ pub fn setup(
         .insert(Fuel { value: 1.0 })
         .insert(Hovering { value: false })
         .with_children(|parent| {
-            crate::camera::setup(parent);
+            parent.spawn_bundle(CameraBundle::new(Transform::from_xyz(-5.0, 4.0, 0.0)));
         });
 }
 
