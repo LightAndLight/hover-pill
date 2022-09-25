@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
+    ui::complete_screen,
     world::PlayerHit,
 };
 
@@ -25,9 +26,15 @@ fn reset_when_player_hits_avoid(
     }
 }
 
-fn debug_player_hits_goal(mut player_hit: EventReader<PlayerHit>) {
-    for _event in player_hit.iter() {
-        debug!("hit goal")
+fn show_complete_screen_on_goal(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut player_hit: EventReader<PlayerHit>,
+) {
+    for event in player_hit.iter() {
+        if let PlayerHit::Goal = event {
+            complete_screen(&mut commands, &asset_server)
+        }
     }
 }
 
@@ -51,7 +58,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_system(reset_when_player_hits_avoid)
-            .add_system(debug_player_hits_goal)
+            .add_system(show_complete_screen_on_goal)
             .add_system(restart_level);
     }
 }
