@@ -44,26 +44,43 @@ pub struct Wall;
 #[derive(Component)]
 pub struct Avoid;
 
-pub struct PlayerHitAvoid;
+#[derive(Component)]
+pub struct Goal;
 
-fn handle_avoid_collisions(
+pub enum PlayerHit {
+    Avoid,
+    Goal,
+}
+
+fn handle_player_collisions(
     mut collision_events: EventReader<CollisionEvent>,
     player_query: Query<&Controlled>,
     avoid_query: Query<&Avoid>,
-    mut player_hit_avoid: EventWriter<PlayerHitAvoid>,
+    goal_query: Query<&Goal>,
+    mut player_hit: EventWriter<PlayerHit>,
 ) {
     for event in collision_events.iter() {
         if let CollisionEvent::Started(entity1, entity2, _) = event {
-            let hit = if player_query.contains(*entity1) {
-                avoid_query.contains(*entity2)
+            let target = if player_query.contains(*entity1) {
+                Some(*entity2)
             } else if player_query.contains(*entity2) {
-                avoid_query.contains(*entity1)
+                Some(*entity1)
             } else {
-                false
+                None
             };
 
-            if hit {
-                player_hit_avoid.send(PlayerHitAvoid);
+            if let Some(target) = target {
+                let hit = if avoid_query.contains(target) {
+                    Some(PlayerHit::Avoid)
+                } else if goal_query.contains(target) {
+                    Some(PlayerHit::Goal)
+                } else {
+                    None
+                };
+
+                if let Some(event) = hit {
+                    player_hit.send(event);
+                }
             }
         }
     }
@@ -132,6 +149,16 @@ pub fn setup(
             Color::RED,
         ))
         .insert(Avoid);
+
+    commands
+        .spawn_bundle(WallBundle::new(
+            &mut meshes,
+            &mut materials,
+            Transform::from_translation((world_box_size + 0.05) * Vec3::Y),
+            Vec2::new(world_box_size / 3.0, world_box_size / 3.0),
+            Color::GREEN,
+        ))
+        .insert(Goal);
 
     commands.spawn_bundle(WallBundle::new(
         &mut meshes,
@@ -219,7 +246,7 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup)
-            .add_event::<PlayerHitAvoid>()
-            .add_system(handle_avoid_collisions);
+            .add_event::<PlayerHit>()
+            .add_system(handle_player_collisions);
     }
 }
