@@ -61,18 +61,20 @@ fn handle_player_collisions(
 ) {
     for event in collision_events.iter() {
         if let CollisionEvent::Started(entity1, entity2, _) = event {
-            let target = if player_query.contains(*entity1) {
-                Some(*entity2)
+            let entities = if player_query.contains(*entity1) {
+                Some((*entity1, *entity2))
             } else if player_query.contains(*entity2) {
-                Some(*entity1)
+                Some((*entity2, *entity1))
             } else {
                 None
             };
 
-            if let Some(target) = target {
+            if let Some((player, target)) = entities {
                 let hit = if avoid_query.contains(target) {
+                    debug!("player {:?} hit avoid {:?}", player, target);
                     Some(PlayerHit::Avoid)
                 } else if goal_query.contains(target) {
+                    debug!("player {:?} hit goal {:?}", player, target);
                     Some(PlayerHit::Goal)
                 } else {
                     None

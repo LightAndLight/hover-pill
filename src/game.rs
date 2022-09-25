@@ -6,7 +6,7 @@ use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
     level::{load_level, CurrentLevel},
-    ui::{complete_screen, NextLevelEvent},
+    ui::{CompleteScreen, NextLevelEvent},
     world::PlayerHit,
 };
 
@@ -28,14 +28,15 @@ fn reset_when_player_hits_avoid(
 }
 
 fn show_complete_screen_on_goal(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
     mut player_hit: EventReader<PlayerHit>,
+    mut complete_screen_query: Query<&mut Visibility, With<CompleteScreen>>,
 ) {
     for event in player_hit.iter() {
         if let PlayerHit::Goal = event {
             debug!("player hit goal");
-            complete_screen(&mut commands, &asset_server)
+            for mut visibility in &mut complete_screen_query {
+                visibility.is_visible = true;
+            }
         }
     }
 }
@@ -60,23 +61,23 @@ fn next_level(
     mut next_level: EventReader<NextLevelEvent>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    current_level: ResMut<CurrentLevel>,
-    mut player_query: Query<&mut Transform, With<Controlled>>,
+    current_level: Res<CurrentLevel>,
 ) {
     for NextLevelEvent in next_level.iter() {
+        commands.entity(current_level.player).despawn_recursive();
+
         for entity in &current_level.structure {
-            commands.entity(*entity).despawn();
-            match current_level.next_level {
-                Some(make_next_level) => {
-                    let next_level = make_next_level();
-                    load_level(&mut commands, &mut meshes, &mut materials, &next_level);
-                    for mut transform in &mut player_query {
-                        transform.translation = next_level.player_start;
-                    }
-                }
-                None => {
-                    debug!("no next_level selected")
-                }
+            commands.entity(*entity).despawn_recursive();
+        }
+
+        match current_level.next_level {
+            Some(make_next_level) => {
+                let next_level = make_next_level();
+
+                load_level(&mut commands, &mut meshes, &mut materials, &next_level);
+            }
+            None => {
+                debug!("no next_level selected")
             }
         }
     }

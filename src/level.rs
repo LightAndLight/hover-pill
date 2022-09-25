@@ -42,6 +42,8 @@ pub fn load_level(
     materials: &mut Assets<StandardMaterial>,
     level: &Level,
 ) {
+    debug!("started loading level");
+
     let entities: Vec<Entity> = level
         .structure
         .iter()
@@ -93,6 +95,8 @@ pub fn load_level(
         materials,
         Transform::from_translation(level.player_start),
     );
+
+    debug!("finished loading level");
 
     commands.insert_resource(CurrentLevel {
         next_level: level.next_level,

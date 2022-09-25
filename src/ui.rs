@@ -57,6 +57,8 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             ));
         });
+
+    make_complete_screen(&mut commands, &asset_server);
 }
 
 pub fn update_fuel_bar(
@@ -76,9 +78,9 @@ struct NextLevel;
 pub struct NextLevelEvent;
 
 #[derive(Component)]
-struct CompleteScreen;
+pub struct CompleteScreen;
 
-pub fn complete_screen(commands: &mut Commands, asset_server: &AssetServer) {
+pub fn make_complete_screen(commands: &mut Commands, asset_server: &AssetServer) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -88,6 +90,7 @@ pub fn complete_screen(commands: &mut Commands, asset_server: &AssetServer) {
                 ..Default::default()
             },
             color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
+            visibility: Visibility { is_visible: false },
             ..Default::default()
         })
         .with_children(|parent| {

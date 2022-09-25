@@ -1,4 +1,4 @@
-use bevy::{prelude::*, winit::WinitSettings};
+use bevy::{ecs::schedule::ReportExecutionOrderAmbiguities, prelude::*, winit::WinitSettings};
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_rapier3d::{prelude::*, render::RapierDebugRenderPlugin};
 use learn_bevy::{
@@ -15,6 +15,7 @@ fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
 fn main() {
     App::new()
         .insert_resource(WinitSettings::game())
+        .insert_resource(ReportExecutionOrderAmbiguities::default())
         .add_plugins(DefaultPlugins)
         .add_plugin(AtmospherePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
