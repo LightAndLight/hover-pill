@@ -22,8 +22,9 @@ pub struct FuelBallBundle {
 
 impl FuelBallBundle {
     pub fn new(
-        mut meshes: ResMut<Assets<Mesh>>,
-        mut materials: ResMut<Assets<StandardMaterial>>,
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<StandardMaterial>,
+        position: Vec3,
     ) -> Self {
         Self {
             pbr_bundle: PbrBundle {
@@ -33,7 +34,7 @@ impl FuelBallBundle {
                     stacks: 3,
                 })),
                 material: materials.add(Color::rgb(0.4, 0.4, 1.).into()),
-                transform: Transform::from_translation(Vec3::new(2., 2., 2.))
+                transform: Transform::from_translation(position)
                     .with_rotation(Quat::from_rotation_x(PI / 2.)),
                 ..default()
             },

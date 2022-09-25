@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{controls::Controlled, fuel_ball::FuelBallBundle};
+use crate::{controls::Controlled, game, level::load_level};
 
 #[derive(Bundle)]
 pub struct WallBundle {
@@ -14,7 +14,7 @@ pub struct WallBundle {
 }
 
 impl WallBundle {
-    fn new(
+    pub fn new(
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
         transform: Transform,
@@ -91,106 +91,13 @@ pub fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let world_box_size = 14.0;
-
-    commands.spawn_bundle(WallBundle::new(
+    load_level(
+        &mut commands,
         &mut meshes,
         &mut materials,
-        Transform::default(),
-        Vec2::new(world_box_size, world_box_size),
-        Color::WHITE,
-    ));
-
-    commands
-        .spawn_bundle(WallBundle::new(
-            &mut meshes,
-            &mut materials,
-            Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)).with_translation(
-                (world_box_size / 2.0) * Vec3::Z - (world_box_size / 3.0) * Vec3::X
-                    + (world_box_size / 2.0) * Vec3::Y,
-            ),
-            Vec2::new(world_box_size / 3.0, world_box_size),
-            Color::RED,
-        ))
-        .insert(Avoid);
-    commands
-        .spawn_bundle(WallBundle::new(
-            &mut meshes,
-            &mut materials,
-            Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)).with_translation(
-                (world_box_size / 2.0) * Vec3::Z
-                    + (world_box_size / 3.0) * Vec3::X
-                    + (world_box_size / 2.0) * Vec3::Y,
-            ),
-            Vec2::new(world_box_size / 3.0, world_box_size),
-            Color::RED,
-        ))
-        .insert(Avoid);
-    commands
-        .spawn_bundle(WallBundle::new(
-            &mut meshes,
-            &mut materials,
-            Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)).with_translation(
-                (world_box_size / 2.0) * Vec3::Z + (world_box_size / 6.0) * Vec3::Y,
-            ),
-            Vec2::new(world_box_size / 3.0, world_box_size / 3.0),
-            Color::RED,
-        ))
-        .insert(Avoid);
-    commands
-        .spawn_bundle(WallBundle::new(
-            &mut meshes,
-            &mut materials,
-            Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)).with_translation(
-                (world_box_size / 2.0) * Vec3::Z
-                    + (world_box_size / 6.0 + 2.0 * world_box_size / 3.0) * Vec3::Y,
-            ),
-            Vec2::new(world_box_size / 3.0, world_box_size / 3.0),
-            Color::RED,
-        ))
-        .insert(Avoid);
-
-    commands
-        .spawn_bundle(WallBundle::new(
-            &mut meshes,
-            &mut materials,
-            Transform::from_translation((world_box_size + 0.05) * Vec3::Y),
-            Vec2::new(world_box_size / 3.0, world_box_size / 3.0),
-            Color::GREEN,
-        ))
-        .insert(Goal);
-
-    commands.spawn_bundle(WallBundle::new(
-        &mut meshes,
-        &mut materials,
-        Transform::from_rotation(Quat::from_rotation_x(PI / 2.0))
-            .with_translation((world_box_size / 2.0) * -Vec3::Z + (world_box_size / 2.0) * Vec3::Y),
-        Vec2::new(world_box_size, world_box_size),
-        Color::WHITE,
-    ));
-    commands.spawn_bundle(WallBundle::new(
-        &mut meshes,
-        &mut materials,
-        Transform::from_rotation(Quat::from_rotation_z(PI / 2.0))
-            .with_translation((world_box_size / 2.0) * Vec3::X + (world_box_size / 2.0) * Vec3::Y),
-        Vec2::new(world_box_size, world_box_size),
-        Color::WHITE,
-    ));
-    commands.spawn_bundle(WallBundle::new(
-        &mut meshes,
-        &mut materials,
-        Transform::from_rotation(Quat::from_rotation_z(PI / 2.0))
-            .with_translation((world_box_size / 2.0) * -Vec3::X + (world_box_size / 2.0) * Vec3::Y),
-        Vec2::new(world_box_size, world_box_size),
-        Color::WHITE,
-    ));
-    commands.spawn_bundle(WallBundle::new(
-        &mut meshes,
-        &mut materials,
-        Transform::from_translation(world_box_size * Vec3::Y),
-        Vec2::new(world_box_size, world_box_size),
-        Color::WHITE,
-    ));
+        //&game::levels::level_1(),
+        &game::levels::tutorial_1(),
+    );
 
     commands
         .spawn_bundle(PbrBundle {
@@ -204,7 +111,7 @@ pub fn setup(
                 emissive: Color::rgba_linear(100.0, 100.0, 100.0, 0.0),
                 ..default()
             }),
-            transform: Transform::from_xyz(0.0, world_box_size / 2.0, 0.0),
+            transform: Transform::from_xyz(0.0, game::levels::WORLD_BOX_SIZE / 2.0, 0.0),
             ..default()
         })
         .with_children(|parent| {
@@ -218,8 +125,6 @@ pub fn setup(
                 ..default()
             });
         });
-
-    commands.spawn_bundle(FuelBallBundle::new(meshes, materials));
 
     commands.spawn_bundle(DirectionalLightBundle {
         transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 3.5)),

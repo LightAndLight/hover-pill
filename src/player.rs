@@ -41,7 +41,7 @@ pub fn setup(
         })
         .insert(LockedAxes::ROTATION_LOCKED)
         .insert(Forward { value: Vec3::X })
-        .insert(Speed { value: 2.0 })
+        .insert(Speed { value: 3.5 })
         .insert(Controlled::default())
         .insert(Fuel { value: 1.0 })
         .insert(Hovering { value: false })
