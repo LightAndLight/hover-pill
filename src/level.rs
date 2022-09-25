@@ -6,6 +6,7 @@ use crate::{
 };
 
 pub struct Level {
+    pub next_level: Option<fn() -> Level>,
     pub player_start: Vec3,
     pub structure: Vec<LevelItem>,
 }
@@ -28,6 +29,7 @@ pub enum LevelItem {
 }
 
 pub struct CurrentLevel {
+    pub next_level: Option<fn() -> Level>,
     pub player_start: Vec3,
     pub structure: Vec<Entity>,
 }
@@ -84,6 +86,7 @@ pub fn load_level(
         .collect();
 
     commands.insert_resource(CurrentLevel {
+        next_level: level.next_level,
         player_start: level.player_start,
         structure: entities,
     });

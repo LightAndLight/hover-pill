@@ -5,7 +5,8 @@ use bevy::prelude::*;
 use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
-    ui::complete_screen,
+    level::{load_level, CurrentLevel},
+    ui::{complete_screen, NextLevelEvent},
     world::PlayerHit,
 };
 
@@ -53,12 +54,40 @@ fn restart_level(
     }
 }
 
+fn next_level(
+    mut commands: Commands,
+    mut next_level: EventReader<NextLevelEvent>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    current_level: ResMut<CurrentLevel>,
+    mut player_query: Query<&mut Transform, With<Controlled>>,
+) {
+    for NextLevelEvent in next_level.iter() {
+        for entity in &current_level.structure {
+            commands.entity(*entity).despawn();
+            match current_level.next_level {
+                Some(make_next_level) => {
+                    let next_level = make_next_level();
+                    load_level(&mut commands, &mut meshes, &mut materials, &next_level);
+                    for mut transform in &mut player_query {
+                        transform.translation = next_level.player_start;
+                    }
+                }
+                None => {
+                    debug!("no next_level selected")
+                }
+            }
+        }
+    }
+}
+
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_system(reset_when_player_hits_avoid)
             .add_system(show_complete_screen_on_goal)
-            .add_system(restart_level);
+            .add_system(restart_level)
+            .add_system(next_level);
     }
 }

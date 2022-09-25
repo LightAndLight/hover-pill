@@ -8,6 +8,7 @@ pub const WORLD_BOX_SIZE: f32 = 14.0;
 
 pub fn tutorial_1() -> Level {
     Level {
+        next_level: Some(level_1),
         player_start: Vec3::ZERO,
         structure: vec![
             LevelItem::Wall {
@@ -30,7 +31,8 @@ pub fn tutorial_1() -> Level {
 
 pub fn level_1() -> Level {
     Level {
-        player_start: Vec3::ZERO,
+        next_level: None,
+        player_start: Vec3::new(0.0, 1.0, 0.0),
         structure: vec![
             LevelItem::Wall {
                 wall_type: WallType::Neutral,

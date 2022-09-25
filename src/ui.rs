@@ -73,7 +73,10 @@ pub fn update_fuel_bar(
 #[derive(Component)]
 struct NextLevel;
 
-struct NextLevelEvent;
+pub struct NextLevelEvent;
+
+#[derive(Component)]
+struct CompleteScreen;
 
 pub fn complete_screen(commands: &mut Commands, asset_server: &AssetServer) {
     commands
@@ -137,17 +140,21 @@ pub fn complete_screen(commands: &mut Commands, asset_server: &AssetServer) {
                     ));
                 })
                 .insert(NextLevel);
-        });
+        })
+        .insert(CompleteScreen);
 }
 
 fn handle_next_level(
     query: Query<&Interaction, (Changed<Interaction>, With<NextLevel>)>,
     mut next_level: EventWriter<NextLevelEvent>,
+    mut complete_screen_query: Query<&mut Visibility, With<CompleteScreen>>,
 ) {
     for interaction in &query {
         if let Interaction::Clicked = interaction {
-            debug!("next level");
             next_level.send(NextLevelEvent);
+            for mut visibility in &mut complete_screen_query {
+                visibility.is_visible = false;
+            }
         }
     }
 }
