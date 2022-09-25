@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     fuel_ball::FuelBallBundle,
+    player::spawn_player,
     world::{Avoid, Goal, WallBundle},
 };
 
@@ -32,6 +33,7 @@ pub struct CurrentLevel {
     pub next_level: Option<fn() -> Level>,
     pub player_start: Vec3,
     pub structure: Vec<Entity>,
+    pub player: Entity,
 }
 
 pub fn load_level(
@@ -85,9 +87,17 @@ pub fn load_level(
         })
         .collect();
 
+    let player = spawn_player(
+        commands,
+        meshes,
+        materials,
+        Transform::from_translation(level.player_start),
+    );
+
     commands.insert_resource(CurrentLevel {
         next_level: level.next_level,
         player_start: level.player_start,
         structure: entities,
+        player,
     });
 }

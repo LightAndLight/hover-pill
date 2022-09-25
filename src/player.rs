@@ -9,11 +9,12 @@ use crate::{
     jump::JumpImpulse,
 };
 
-pub fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+pub fn spawn_player(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    transform: Transform,
+) -> Entity {
     let capsule_radius = 0.5;
     let capsule_depth = 2.0 * capsule_radius;
 
@@ -27,7 +28,7 @@ pub fn setup(
                 ..default()
             })),
             material: materials.add(Color::rgb(0.8, 0.7, 0.3).into()),
-            transform: Transform::from_xyz(0.0, 3.0 * capsule_depth, 0.0),
+            transform,
             ..default()
         })
         .insert(Collider::capsule_y(capsule_depth / 2.0, capsule_radius))
@@ -47,7 +48,8 @@ pub fn setup(
         .insert(Hovering { value: false })
         .with_children(|parent| {
             parent.spawn_bundle(CameraBundle::new(Transform::from_xyz(-5.0, 4.0, 0.0)));
-        });
+        })
+        .id()
 }
 
 pub fn move_controlled(
@@ -115,7 +117,6 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(ControlsPlugin)
             .add_plugin(CameraPlugin)
-            .add_startup_system(setup)
             .add_system(move_controlled)
             .add_system(rotate_controlled);
     }
