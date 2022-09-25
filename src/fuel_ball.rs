@@ -10,27 +10,39 @@ pub struct FuelBall {
     pub amount: f32,
 }
 
-pub fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    commands
-        .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::UVSphere {
-                radius: 0.25,
-                sectors: 4,
-                stacks: 3,
-            })),
-            material: materials.add(Color::rgb(0.4, 0.4, 1.).into()),
-            transform: Transform::from_translation(Vec3::new(2., 2., 2.))
-                .with_rotation(Quat::from_rotation_x(PI / 2.)),
-            ..default()
-        })
-        .insert(Collider::ball(0.25))
-        .insert(ActiveEvents::COLLISION_EVENTS)
-        .insert(Sensor)
-        .insert(FuelBall { amount: 0.20 });
+#[derive(Bundle)]
+pub struct FuelBallBundle {
+    #[bundle]
+    pbr_bundle: PbrBundle,
+    collider: Collider,
+    active_events: ActiveEvents,
+    sensor: Sensor,
+    fuel_ball: FuelBall,
+}
+
+impl FuelBallBundle {
+    pub fn new(
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<StandardMaterial>>,
+    ) -> Self {
+        Self {
+            pbr_bundle: PbrBundle {
+                mesh: meshes.add(Mesh::from(shape::UVSphere {
+                    radius: 0.25,
+                    sectors: 4,
+                    stacks: 3,
+                })),
+                material: materials.add(Color::rgb(0.4, 0.4, 1.).into()),
+                transform: Transform::from_translation(Vec3::new(2., 2., 2.))
+                    .with_rotation(Quat::from_rotation_x(PI / 2.)),
+                ..default()
+            },
+            collider: Collider::ball(0.25),
+            active_events: ActiveEvents::COLLISION_EVENTS,
+            sensor: Sensor,
+            fuel_ball: FuelBall { amount: 0.20 },
+        }
+    }
 }
 
 pub fn refuel(
@@ -70,8 +82,6 @@ pub struct FuelBallPlugin;
 
 impl Plugin for FuelBallPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup)
-            .add_system(refuel)
-            .add_system(rotate);
+        app.add_system(refuel).add_system(rotate);
     }
 }

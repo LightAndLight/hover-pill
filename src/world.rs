@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::controls::Controlled;
+use crate::{controls::Controlled, fuel_ball::FuelBallBundle};
 
 #[derive(Bundle)]
 pub struct WallBundle {
@@ -191,6 +191,8 @@ pub fn setup(
                 ..default()
             });
         });
+
+    commands.spawn_bundle(FuelBallBundle::new(meshes, materials));
 
     commands.spawn_bundle(DirectionalLightBundle {
         transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 3.5)),
