@@ -1,0 +1,4 @@
+why does the game take so long to start after I reboot?
+* subsequent runs are fast
+
+wasm - https://github.com/JonahPlusPlus/bevy_atmosphere/issues/22
