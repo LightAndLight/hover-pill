@@ -9,6 +9,7 @@ use crate::{controls::Controlled, game, level::load_level};
 pub struct WallBundle {
     #[bundle]
     pbr_bundle: PbrBundle,
+    rigid_body: RigidBody,
     collider: Collider,
     wall: Wall,
 }
@@ -32,6 +33,7 @@ impl WallBundle {
                 transform,
                 ..default()
             },
+            rigid_body: RigidBody::Fixed,
             collider: Collider::cuboid(width / 2.0, height / 2.0, depth / 2.0),
             wall: Wall,
         }

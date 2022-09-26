@@ -16,6 +16,7 @@ pub struct FuelBallBundle {
     pbr_bundle: PbrBundle,
     collider: Collider,
     active_events: ActiveEvents,
+    rigid_body: RigidBody,
     sensor: Sensor,
     fuel_ball: FuelBall,
 }
@@ -40,6 +41,7 @@ impl FuelBallBundle {
             },
             collider: Collider::ball(0.25),
             active_events: ActiveEvents::COLLISION_EVENTS,
+            rigid_body: RigidBody::Fixed,
             sensor: Sensor,
             fuel_ball: FuelBall { amount: 0.20 },
         }
