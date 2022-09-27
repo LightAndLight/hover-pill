@@ -174,23 +174,28 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             ));
         });
+}
 
-    let overlay = commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
+impl FromWorld for Overlay {
+    fn from_world(world: &mut World) -> Self {
+        let entity = world
+            .spawn()
+            .insert_bundle(NodeBundle {
+                style: Style {
+                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..Default::default()
+                },
+                color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
+                visibility: Visibility { is_visible: false },
                 ..Default::default()
-            },
-            color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
-            visibility: Visibility { is_visible: false },
-            ..Default::default()
-        })
-        .id();
+            })
+            .id();
 
-    commands.insert_resource(Overlay { entity: overlay });
+        Self { entity }
+    }
 }
 
 pub struct UiPlugin;
