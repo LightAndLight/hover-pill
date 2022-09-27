@@ -1,3 +1,4 @@
+pub mod button;
 pub mod tutorial;
 
 use bevy::prelude::*;
@@ -21,9 +22,6 @@ pub fn update_fuel_bar(
 pub struct Overlay {
     pub entity: Entity,
 }
-
-#[derive(Component)]
-struct NextLevel;
 
 pub struct NextLevelEvent;
 
@@ -92,7 +90,7 @@ fn display_complete_screen(
                             },
                         ));
                     })
-                    .insert(NextLevel);
+                    .insert(button::ButtonName::Next);
             })
             .insert(CompleteScreen);
 
@@ -102,14 +100,14 @@ fn display_complete_screen(
 }
 
 fn handle_next_level(
-    query: Query<&Interaction, (Changed<Interaction>, With<NextLevel>)>,
+    mut button_press: EventReader<button::ButtonPressEvent>,
     mut commands: Commands,
     mut next_level: EventWriter<NextLevelEvent>,
     overlay: Res<Overlay>,
     mut visibility_query: Query<&mut Visibility>,
 ) {
-    for interaction in &query {
-        if let Interaction::Clicked = interaction {
+    for event in button_press.iter() {
+        if let button::ButtonName::Next = event.name {
             next_level.send(NextLevelEvent);
 
             let mut visibility = visibility_query.get_mut(overlay.entity).unwrap();
@@ -205,6 +203,7 @@ impl Plugin for UiPlugin {
         app.add_startup_system(setup)
             .add_event::<NextLevelEvent>()
             .add_event::<DisplayCompleteScreenEvent>()
+            .add_plugin(button::ButtonPlugin)
             .add_plugin(tutorial::TutorialPlugin)
             .add_system(handle_next_level)
             .add_system(display_complete_screen)

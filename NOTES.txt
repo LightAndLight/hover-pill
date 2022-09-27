@@ -1,0 +1,12 @@
+.insert_resource(ReportExecutionOrderAmbiguities::default()) shows us parallel
+systems.
+
+When two parallel systems access the same mutable resource, we have a data race.
+
+Two parallel systems whose "inputs" and "outputs" overlap may indicate that a
+third common system should exist.
+
+If something's only happening in one place there should probably only be one system
+for it. e.g. button presses - there is conceptually a single stream of button presses,
+so there should be a single system that generates button press events. Then everything
+that needs to respond to button presses reads from this stream.

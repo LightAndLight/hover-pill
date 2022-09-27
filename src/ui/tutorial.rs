@@ -1,15 +1,12 @@
 use bevy::prelude::*;
 
-use super::Overlay;
+use super::{button, Overlay};
 
 #[derive(Component)]
 pub enum TutorialScreen {
     One,
     Two,
 }
-
-#[derive(Component)]
-struct Continue;
 
 fn spawn_continue_button(parent: &mut ChildBuilder, asset_server: &AssetServer) {
     parent
@@ -36,7 +33,7 @@ fn spawn_continue_button(parent: &mut ChildBuilder, asset_server: &AssetServer) 
                 },
             ));
         })
-        .insert(Continue);
+        .insert(button::ButtonName::Continue);
 }
 
 pub type OverlayFn = fn(
@@ -189,13 +186,13 @@ pub fn display_tutorial_3(
 }
 
 fn handle_continue(
-    query: Query<&Interaction, (Changed<Interaction>, With<Continue>)>,
+    mut button_press: EventReader<button::ButtonPressEvent>,
     mut commands: Commands,
     overlay: Res<Overlay>,
     mut visibility_query: Query<&mut Visibility>,
 ) {
-    for interaction in &query {
-        if let Interaction::Clicked = interaction {
+    for event in button_press.iter() {
+        if let button::ButtonName::Continue = event.name {
             let mut visibility = visibility_query.get_mut(overlay.entity).unwrap();
             visibility.is_visible = false;
 
