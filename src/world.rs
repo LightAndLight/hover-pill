@@ -136,12 +136,12 @@ pub fn setup(
             illuminance: 10000.0,
             shadows_enabled: true,
             shadow_projection: OrthographicProjection {
-                left: -10.0,
-                right: 10.0,
-                bottom: -10.0,
-                top: 10.0,
-                near: -10.0,
-                far: 10.0,
+                left: -50.0,
+                right: 50.0,
+                bottom: -50.0,
+                top: 50.0,
+                near: -50.0,
+                far: 50.0,
                 ..default()
             },
             ..default()
