@@ -6,7 +6,7 @@ use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
     level::{load_level, CurrentLevel},
-    ui::{tutorial::DisplayTutorial1, DisplayCompleteScreenEvent, NextLevelEvent},
+    ui::{DisplayCompleteScreenEvent, NextLevelEvent, Overlay},
     world::PlayerHit,
 };
 
@@ -55,6 +55,9 @@ fn restart_level(
 }
 
 fn next_level(
+    asset_server: Res<AssetServer>,
+    overlay: Res<Overlay>,
+    mut visibility_query: Query<&mut Visibility>,
     mut commands: Commands,
     mut next_level: EventReader<NextLevelEvent>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -72,7 +75,15 @@ fn next_level(
             Some(make_next_level) => {
                 let next_level = make_next_level();
 
-                load_level(&mut commands, &mut meshes, &mut materials, &next_level);
+                load_level(
+                    &asset_server,
+                    &overlay,
+                    &mut visibility_query,
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &next_level,
+                );
             }
             None => {
                 debug!("no next_level selected")
@@ -81,16 +92,11 @@ fn next_level(
     }
 }
 
-fn setup(mut display_tutorial_1: EventWriter<DisplayTutorial1>) {
-    display_tutorial_1.send(DisplayTutorial1);
-}
-
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup)
-            .add_system(reset_when_player_hits_avoid)
+        app.add_system(reset_when_player_hits_avoid)
             .add_system(show_complete_screen_on_goal)
             .add_system(restart_level)
             .add_system(next_level);

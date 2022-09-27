@@ -2,7 +2,10 @@ use std::f32::consts::PI;
 
 use bevy::prelude::*;
 
-use crate::level::{Level, LevelItem, WallType};
+use crate::{
+    level::{Level, LevelItem, WallType},
+    ui,
+};
 
 pub const WORLD_BOX_SIZE: f32 = 14.0;
 
@@ -10,6 +13,7 @@ pub fn tutorial_1() -> Level {
     Level {
         next_level: Some(tutorial_2),
         player_start: 3.0 * Vec3::Y,
+        initial_overlay: Some(ui::tutorial::display_tutorial_1),
         structure: vec![
             LevelItem::Wall {
                 wall_type: WallType::Neutral,
@@ -31,6 +35,7 @@ pub fn tutorial_2() -> Level {
     Level {
         next_level: Some(tutorial_3),
         player_start: 3.0 * Vec3::Y,
+        initial_overlay: Some(ui::tutorial::display_tutorial_2),
         structure: vec![
             LevelItem::Wall {
                 wall_type: WallType::Neutral,
@@ -55,6 +60,7 @@ pub fn tutorial_3() -> Level {
     Level {
         next_level: Some(level_1),
         player_start: 3.0 * Vec3::Y,
+        initial_overlay: None,
         structure: vec![
             LevelItem::Wall {
                 wall_type: WallType::Neutral,
@@ -79,6 +85,7 @@ pub fn level_1() -> Level {
     Level {
         next_level: None,
         player_start: Vec3::new(0.0, 1.0, 0.0),
+        initial_overlay: None,
         structure: vec![
             LevelItem::Wall {
                 wall_type: WallType::Neutral,

@@ -19,26 +19,7 @@ pub fn update_fuel_bar(
 }
 
 pub struct Overlay {
-    entity: Entity,
-}
-
-pub fn make_overlay(commands: &mut Commands) {
-    let overlay = commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..Default::default()
-            },
-            color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
-            visibility: Visibility { is_visible: false },
-            ..Default::default()
-        })
-        .id();
-
-    commands.insert_resource(Overlay { entity: overlay });
+    pub entity: Entity,
 }
 
 #[derive(Component)]
@@ -194,7 +175,22 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ));
         });
 
-    make_overlay(&mut commands);
+    let overlay = commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..Default::default()
+            },
+            color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
+            visibility: Visibility { is_visible: false },
+            ..Default::default()
+        })
+        .id();
+
+    commands.insert_resource(Overlay { entity: overlay });
 }
 
 pub struct UiPlugin;
