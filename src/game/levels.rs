@@ -60,7 +60,7 @@ pub fn tutorial_3() -> Level {
     Level {
         next_level: Some(level_1),
         player_start: 3.0 * Vec3::Y,
-        initial_overlay: None,
+        initial_overlay: Some(ui::tutorial::display_tutorial_3),
         structure: vec![
             LevelItem::Wall {
                 wall_type: WallType::Neutral,

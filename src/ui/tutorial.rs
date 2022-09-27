@@ -139,6 +139,55 @@ pub fn display_tutorial_2(
     visibility.is_visible = true;
 }
 
+pub fn display_tutorial_3(
+    asset_server: &AssetServer,
+    commands: &mut Commands,
+    overlay: &Overlay,
+    visibility_query: &mut Query<&mut Visibility>,
+) {
+    let style = TextStyle {
+        font: asset_server.load("fonts/DejaVuSansMono.ttf"),
+        font_size: 40.0,
+        color: Color::WHITE,
+    };
+
+    let mut overlay = commands.entity(overlay.entity);
+    overlay
+        .with_children(|parent| {
+            parent
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        position: UiRect {
+                            top: Val::Px(200.0),
+                            ..Default::default()
+                        },
+                        flex_direction: FlexDirection::ColumnReverse,
+                        align_items: AlignItems::Center,
+                        ..Default::default()
+                    },
+                    color: Color::NONE.into(),
+                    ..Default::default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle::from_sections([
+                        TextSection::new("red", {
+                            let mut style = style.clone();
+                            style.color = Color::RED;
+                            style
+                        }),
+                        TextSection::new(" - avoid", style.clone()),
+                    ]));
+                });
+
+            spawn_continue_button(parent, asset_server);
+        })
+        .insert(TutorialScreen::Two);
+
+    let mut visibility = visibility_query.get_mut(overlay.id()).unwrap();
+    visibility.is_visible = true;
+}
+
 fn handle_continue(
     query: Query<&Interaction, (Changed<Interaction>, With<Continue>)>,
     mut commands: Commands,

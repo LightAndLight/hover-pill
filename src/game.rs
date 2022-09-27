@@ -55,14 +55,14 @@ fn restart_level(
 }
 
 fn next_level(
+    mut next_level: EventReader<NextLevelEvent>,
     asset_server: Res<AssetServer>,
     overlay: Res<Overlay>,
+    current_level: Res<CurrentLevel>,
     mut visibility_query: Query<&mut Visibility>,
     mut commands: Commands,
-    mut next_level: EventReader<NextLevelEvent>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    current_level: Res<CurrentLevel>,
 ) {
     for NextLevelEvent in next_level.iter() {
         commands.entity(current_level.player).despawn_recursive();
