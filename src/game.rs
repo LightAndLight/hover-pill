@@ -6,7 +6,7 @@ use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
     level::{load_level, CurrentLevel},
-    ui::{CompleteScreen, NextLevelEvent},
+    ui::{tutorial::DisplayTutorial1, DisplayCompleteScreenEvent, NextLevelEvent},
     world::PlayerHit,
 };
 
@@ -29,14 +29,12 @@ fn reset_when_player_hits_avoid(
 
 fn show_complete_screen_on_goal(
     mut player_hit: EventReader<PlayerHit>,
-    mut complete_screen_query: Query<&mut Visibility, With<CompleteScreen>>,
+    mut display_complete_screen: EventWriter<DisplayCompleteScreenEvent>,
 ) {
     for event in player_hit.iter() {
         if let PlayerHit::Goal = event {
             debug!("player hit goal");
-            for mut visibility in &mut complete_screen_query {
-                visibility.is_visible = true;
-            }
+            display_complete_screen.send(DisplayCompleteScreenEvent);
         }
     }
 }
@@ -83,11 +81,16 @@ fn next_level(
     }
 }
 
+fn setup(mut display_tutorial_1: EventWriter<DisplayTutorial1>) {
+    display_tutorial_1.send(DisplayTutorial1);
+}
+
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(reset_when_player_hits_avoid)
+        app.add_startup_system(setup)
+            .add_system(reset_when_player_hits_avoid)
             .add_system(show_complete_screen_on_goal)
             .add_system(restart_level)
             .add_system(next_level);
