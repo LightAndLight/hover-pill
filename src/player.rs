@@ -41,13 +41,13 @@ pub fn spawn_player(
             value: initial_jump_impulse,
         })
         .insert(LockedAxes::ROTATION_LOCKED)
-        .insert(Forward { value: Vec3::X })
+        .insert(Forward { value: Vec3::Z })
         .insert(Speed { value: 3.5 })
         .insert(Controlled::default())
         .insert(Fuel { value: 1.0 })
         .insert(Hovering { value: false })
         .with_children(|parent| {
-            parent.spawn_bundle(CameraBundle::new(Transform::from_xyz(-5.0, 4.0, 0.0)));
+            parent.spawn_bundle(CameraBundle::new(Transform::from_xyz(0.0, 4.0, -5.0)));
         })
         .id()
 }
@@ -102,7 +102,7 @@ pub fn rotate_controlled(
 
             for child in children.iter() {
                 if let Ok(mut camera_transform) = camera_query.get_mut(*child) {
-                    let camera_rotation = Quat::from_axis_angle(Vec3::Z, 0.005 * -delta.y);
+                    let camera_rotation = Quat::from_axis_angle(Vec3::X, 0.005 * delta.y);
 
                     camera_transform.rotate_around(Vec3::ZERO, camera_rotation);
                 }
