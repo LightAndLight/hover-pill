@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{controls::Controlled, game, level::load_level};
+use crate::{controls::Controlled, game, level::load_level, ui::Overlay};
 
 #[derive(Bundle)]
 pub struct WallBundle {
@@ -91,15 +91,20 @@ fn handle_player_collisions(
 }
 
 pub fn setup(
+    asset_server: Res<AssetServer>,
+    overlay: Res<Overlay>,
+    mut visibility_query: Query<&mut Visibility>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     load_level(
+        &asset_server,
+        &overlay,
+        &mut visibility_query,
         &mut commands,
         &mut meshes,
         &mut materials,
-        //&game::levels::level_1(),
         &game::levels::tutorial_1(),
     );
 
@@ -136,12 +141,12 @@ pub fn setup(
             illuminance: 10000.0,
             shadows_enabled: true,
             shadow_projection: OrthographicProjection {
-                left: -10.0,
-                right: 10.0,
-                bottom: -10.0,
-                top: 10.0,
-                near: -10.0,
-                far: 10.0,
+                left: -50.0,
+                right: 50.0,
+                bottom: -50.0,
+                top: 50.0,
+                near: -50.0,
+                far: 50.0,
                 ..default()
             },
             ..default()

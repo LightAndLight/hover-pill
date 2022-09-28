@@ -6,7 +6,7 @@ use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
     level::{load_level, CurrentLevel},
-    ui::{CompleteScreen, NextLevelEvent},
+    ui::{DisplayCompleteScreenEvent, NextLevelEvent, Overlay},
     world::PlayerHit,
 };
 
@@ -29,14 +29,12 @@ fn reset_when_player_hits_avoid(
 
 fn show_complete_screen_on_goal(
     mut player_hit: EventReader<PlayerHit>,
-    mut complete_screen_query: Query<&mut Visibility, With<CompleteScreen>>,
+    mut display_complete_screen: EventWriter<DisplayCompleteScreenEvent>,
 ) {
     for event in player_hit.iter() {
         if let PlayerHit::Goal = event {
             debug!("player hit goal");
-            for mut visibility in &mut complete_screen_query {
-                visibility.is_visible = true;
-            }
+            display_complete_screen.send(DisplayCompleteScreenEvent);
         }
     }
 }
@@ -57,11 +55,14 @@ fn restart_level(
 }
 
 fn next_level(
-    mut commands: Commands,
     mut next_level: EventReader<NextLevelEvent>,
+    asset_server: Res<AssetServer>,
+    overlay: Res<Overlay>,
+    current_level: Res<CurrentLevel>,
+    mut visibility_query: Query<&mut Visibility>,
+    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    current_level: Res<CurrentLevel>,
 ) {
     for NextLevelEvent in next_level.iter() {
         commands.entity(current_level.player).despawn_recursive();
@@ -74,7 +75,15 @@ fn next_level(
             Some(make_next_level) => {
                 let next_level = make_next_level();
 
-                load_level(&mut commands, &mut meshes, &mut materials, &next_level);
+                load_level(
+                    &asset_server,
+                    &overlay,
+                    &mut visibility_query,
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    &next_level,
+                );
             }
             None => {
                 debug!("no next_level selected")

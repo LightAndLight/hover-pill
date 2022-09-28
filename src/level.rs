@@ -3,12 +3,14 @@ use bevy::prelude::*;
 use crate::{
     fuel_ball::FuelBallBundle,
     player::spawn_player,
+    ui::{tutorial::OverlayFn, Overlay},
     world::{Avoid, Goal, WallBundle},
 };
 
 pub struct Level {
     pub next_level: Option<fn() -> Level>,
     pub player_start: Vec3,
+    pub initial_overlay: Option<OverlayFn>,
     pub structure: Vec<LevelItem>,
 }
 
@@ -37,6 +39,9 @@ pub struct CurrentLevel {
 }
 
 pub fn load_level(
+    asset_server: &AssetServer,
+    overlay: &Overlay,
+    visibility_query: &mut Query<&mut Visibility>,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -95,6 +100,10 @@ pub fn load_level(
         materials,
         Transform::from_translation(level.player_start),
     );
+
+    if let Some(overlay_fn) = level.initial_overlay {
+        overlay_fn(asset_server, commands, overlay, visibility_query);
+    }
 
     debug!("finished loading level");
 
