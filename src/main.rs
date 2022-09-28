@@ -1,4 +1,9 @@
-use bevy::{ecs::schedule::ReportExecutionOrderAmbiguities, prelude::*, winit::WinitSettings};
+use bevy::{
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    ecs::schedule::ReportExecutionOrderAmbiguities,
+    prelude::*,
+    winit::WinitSettings,
+};
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_rapier3d::{prelude::*, render::RapierDebugRenderPlugin};
 use learn_bevy::{
@@ -18,11 +23,13 @@ fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
 }
 
 fn main() {
-    App::new()
-        .insert_resource(WinitSettings::game())
+    let mut app = App::new();
+
+    app.insert_resource(WinitSettings::game())
         .insert_resource(ReportExecutionOrderAmbiguities::default())
         .add_plugins(DefaultPlugins)
-        .add_plugin(AtmospherePlugin)
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(FuelPlugin)
@@ -33,6 +40,11 @@ fn main() {
         .add_plugin(PlayerPlugin)
         .add_plugin(WorldPlugin)
         .add_plugin(GamePlugin)
-        .add_system(display_collision_events)
-        .run()
+        .add_system(display_collision_events);
+
+    if !cfg!(target_family = "wasm") {
+        app.add_plugin(AtmospherePlugin);
+    };
+
+    app.run();
 }
