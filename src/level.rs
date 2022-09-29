@@ -1,29 +1,35 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, reflect::TypeUuid};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     fuel_ball::FuelBallBundle,
     player::spawn_player,
-    ui::{tutorial::OverlayFn, Overlay},
+    ui::{tutorial::display_level_overlay, Overlay},
     world::{Avoid, Goal, WallBundle},
 };
 
+#[derive(Serialize, Deserialize, TypeUuid)]
+#[uuid = "a79e94e4-1d11-4581-82f8-fb82cbc67f43"]
 pub struct Level {
-    pub next_level: Option<fn() -> Level>,
+    pub next_level: Option<String>,
     pub player_start: Vec3,
-    pub initial_overlay: Option<OverlayFn>,
+    pub initial_overlay: Option<Vec<String>>,
     pub structure: Vec<LevelItem>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum WallType {
     Neutral,
     Avoid,
     Goal,
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum LevelItem {
     Wall {
         wall_type: WallType,
-        transform: Transform,
+        position: Vec3,
+        rotation: Quat,
         size: Vec2,
     },
     FuelBall {
@@ -32,7 +38,7 @@ pub enum LevelItem {
 }
 
 pub struct CurrentLevel {
-    pub next_level: Option<fn() -> Level>,
+    pub next_level: Option<String>,
     pub player_start: Vec3,
     pub structure: Vec<Entity>,
     pub player: Entity,
@@ -55,14 +61,17 @@ pub fn load_level(
         .map(|item| match item {
             LevelItem::Wall {
                 wall_type,
-                transform,
+                position,
+                rotation,
                 size,
             } => match wall_type {
                 WallType::Neutral => commands
                     .spawn_bundle(WallBundle::new(
                         meshes,
                         materials,
-                        *transform,
+                        Transform::identity()
+                            .with_translation(*position)
+                            .with_rotation(*rotation),
                         *size,
                         Color::WHITE,
                     ))
@@ -71,7 +80,9 @@ pub fn load_level(
                     .spawn_bundle(WallBundle::new(
                         meshes,
                         materials,
-                        *transform,
+                        Transform::identity()
+                            .with_translation(*position)
+                            .with_rotation(*rotation),
                         *size,
                         Color::RED,
                     ))
@@ -81,7 +92,9 @@ pub fn load_level(
                     .spawn_bundle(WallBundle::new(
                         meshes,
                         materials,
-                        *transform,
+                        Transform::identity()
+                            .with_translation(*position)
+                            .with_rotation(*rotation),
                         *size,
                         Color::GREEN,
                     ))
@@ -101,14 +114,20 @@ pub fn load_level(
         Transform::from_translation(level.player_start),
     );
 
-    if let Some(overlay_fn) = level.initial_overlay {
-        overlay_fn(asset_server, commands, overlay, visibility_query);
+    if let Some(overlay_text) = &level.initial_overlay {
+        display_level_overlay(
+            asset_server,
+            commands,
+            overlay,
+            visibility_query,
+            overlay_text,
+        );
     }
 
     debug!("finished loading level");
 
     commands.insert_resource(CurrentLevel {
-        next_level: level.next_level,
+        next_level: level.next_level.clone(),
         player_start: level.player_start,
         structure: entities,
         player,
