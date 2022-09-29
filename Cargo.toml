@@ -1,5 +1,5 @@
 [package]
-name = "learn-bevy"
+name = "hover-pill"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,7 +10,7 @@ bevy_rapier3d = { version = "0.16.2", features = ["debug-render"] }
 wasm-bindgen = "= 0.2.82"
 
 [lib]
-name = "learn_bevy"
+name = "hover_pill"
 crate-type = ["cdylib", "rlib"]
 
 [profile.dev]

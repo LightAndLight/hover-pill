@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_rapier3d::{prelude::*, render::RapierDebugRenderPlugin};
-use learn_bevy::{
+use hover_pill::{
     fuel::FuelPlugin,
     fuel_ball::FuelBallPlugin,
     game::GamePlugin,
