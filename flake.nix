@@ -42,6 +42,7 @@
                 workspaceSrc = wasm-server-runner;
                 inherit rustVersion;
               })
+              pkgs.wasm-bindgen-cli
 
               # Required to build Rust dependencies
               pkgs.cmake
@@ -53,6 +54,9 @@
               pkgs.xorg.libXi
               pkgs.alsaLib
               pkgs.udev
+             
+              # required by wasm-pack
+              pkgs.openssl
 
               pkgs.mold
               pkgs.clang_14

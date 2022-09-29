@@ -1,0 +1,4 @@
+#! /usr/bin/env bash
+
+cargo build --release --target wasm32-unknown-unknown --target-dir target-wasm
+wasm-bindgen --out-dir ./pkg --target web target-wasm/wasm32-unknown-unknown/release/learn-bevy.wasm
