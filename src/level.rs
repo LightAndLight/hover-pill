@@ -62,6 +62,7 @@ pub enum LevelItem {
     },
     Light {
         position: Vec3,
+        intensity: f32,
     },
 }
 
@@ -81,6 +82,8 @@ pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
         structure, player, ..
     } = current_level
     {
+        debug!("clearing level");
+
         commands.entity(*player).despawn_recursive();
 
         for entity in structure {
@@ -150,7 +153,10 @@ pub fn load_level(
             LevelItem::FuelBall { position } => commands
                 .spawn_bundle(FuelBallBundle::new(meshes, materials, *position))
                 .id(),
-            LevelItem::Light { position } => commands
+            LevelItem::Light {
+                position,
+                intensity,
+            } => commands
                 .spawn_bundle(PbrBundle {
                     mesh: meshes.add(Mesh::from(shape::UVSphere {
                         radius: 0.1,
@@ -168,7 +174,7 @@ pub fn load_level(
                 .with_children(|parent| {
                     parent.spawn_bundle(PointLightBundle {
                         point_light: PointLight {
-                            intensity: 2000.0,
+                            intensity: *intensity,
                             radius: 0.1,
                             shadows_enabled: true,
                             ..default()
