@@ -8,6 +8,15 @@
   "initial_overlay": null,
   "structure": [
     {
+      "Light": {
+        "position": [
+          0.0,
+          13.5,
+          0.0
+        ]
+      }
+    },
+    {
       "Wall": {
         "wall_type": "Neutral",
         "position": [

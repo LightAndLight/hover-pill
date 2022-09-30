@@ -5,8 +5,6 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{controls::Controlled, level};
 
-const WORLD_BOX_SIZE: f32 = 14.0;
-
 #[derive(Bundle)]
 pub struct WallBundle {
     #[bundle]
@@ -92,41 +90,9 @@ fn handle_player_collisions(
     }
 }
 
-pub fn setup(
-    asset_server: Res<AssetServer>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+pub fn setup(asset_server: Res<AssetServer>, mut commands: Commands) {
     let next_level_handle = asset_server.load("levels/tutorial_1.json");
     commands.insert_resource(level::CurrentLevel::Loading(next_level_handle));
-
-    commands
-        .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::UVSphere {
-                radius: 0.1,
-                sectors: 20,
-                stacks: 20,
-            })),
-            material: materials.add(StandardMaterial {
-                base_color: Color::WHITE,
-                emissive: Color::rgba_linear(100.0, 100.0, 100.0, 0.0),
-                ..default()
-            }),
-            transform: Transform::from_xyz(0.0, WORLD_BOX_SIZE / 2.0, 0.0),
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn_bundle(PointLightBundle {
-                point_light: PointLight {
-                    intensity: 2000.0,
-                    radius: 0.1,
-                    shadows_enabled: true,
-                    ..default()
-                },
-                ..default()
-            });
-        });
 
     commands.spawn_bundle(DirectionalLightBundle {
         transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 3.5)),

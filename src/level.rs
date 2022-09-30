@@ -60,6 +60,9 @@ pub enum LevelItem {
     FuelBall {
         position: Vec3,
     },
+    Light {
+        position: Vec3,
+    },
 }
 
 pub enum CurrentLevel {
@@ -146,6 +149,33 @@ pub fn load_level(
             },
             LevelItem::FuelBall { position } => commands
                 .spawn_bundle(FuelBallBundle::new(meshes, materials, *position))
+                .id(),
+            LevelItem::Light { position } => commands
+                .spawn_bundle(PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::UVSphere {
+                        radius: 0.1,
+                        sectors: 20,
+                        stacks: 20,
+                    })),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::WHITE,
+                        emissive: Color::rgba_linear(100.0, 100.0, 100.0, 0.0),
+                        ..default()
+                    }),
+                    transform: Transform::from_translation(*position),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(PointLightBundle {
+                        point_light: PointLight {
+                            intensity: 2000.0,
+                            radius: 0.1,
+                            shadows_enabled: true,
+                            ..default()
+                        },
+                        ..default()
+                    });
+                })
                 .id(),
         })
         .collect();

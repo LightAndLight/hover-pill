@@ -1,5 +1,4 @@
 use bevy::{
-    asset::AssetServerSettings,
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     ecs::schedule::ReportExecutionOrderAmbiguities,
     prelude::*,
