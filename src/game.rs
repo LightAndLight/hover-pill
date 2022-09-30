@@ -59,19 +59,9 @@ fn next_level(
     mut commands: Commands,
 ) {
     for NextLevelEvent in next_level.iter() {
-        if let CurrentLevel::Loaded {
-            next_level,
-            structure,
-            player,
-            ..
-        } = current_level.as_ref()
-        {
-            commands.entity(*player).despawn_recursive();
+        level::clear_level(&current_level, &mut commands);
 
-            for entity in structure {
-                commands.entity(*entity).despawn_recursive();
-            }
-
+        if let CurrentLevel::Loaded { next_level, .. } = current_level.as_ref() {
             match next_level {
                 Some(next_level_name) => {
                     let next_level_path = format!("levels/{}.json", next_level_name);
@@ -108,6 +98,7 @@ fn load_next_level(
                 &mut commands,
                 &mut meshes,
                 &mut materials,
+                next_level_handle.clone(),
                 level,
             );
         }

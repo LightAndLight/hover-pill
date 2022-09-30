@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.8.1"
+bevy = { version = "0.8.1", features = ["filesystem_watcher"] }
 bevy_atmosphere = "0.4.1"
 bevy_rapier3d = { version = "0.16.2", features = ["debug-render"] }
 serde = { version = "1.0.145", features = ["serde_derive"] }
