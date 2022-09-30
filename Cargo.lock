@@ -1738,6 +1738,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
+name = "hover-pill"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_atmosphere",
+ "bevy_rapier3d",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1908,16 +1920,6 @@ name = "lazycell"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
-
-[[package]]
-name = "learn-bevy"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_atmosphere",
- "bevy_rapier3d",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "lewton"

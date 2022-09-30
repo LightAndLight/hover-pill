@@ -1,41 +1,95 @@
-use bevy::prelude::*;
+use bevy::{
+    asset::{AssetLoader, LoadedAsset},
+    prelude::*,
+    reflect::TypeUuid,
+};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     fuel_ball::FuelBallBundle,
     player::spawn_player,
-    ui::{tutorial::OverlayFn, Overlay},
+    ui::{tutorial::display_level_overlay, Overlay},
     world::{Avoid, Goal, WallBundle},
 };
 
+#[derive(Serialize, Deserialize, TypeUuid)]
+#[uuid = "a79e94e4-1d11-4581-82f8-fb82cbc67f43"]
 pub struct Level {
-    pub next_level: Option<fn() -> Level>,
+    pub next_level: Option<String>,
     pub player_start: Vec3,
-    pub initial_overlay: Option<OverlayFn>,
+    pub initial_overlay: Option<Vec<String>>,
     pub structure: Vec<LevelItem>,
 }
 
+#[derive(Default)]
+pub struct LevelAssetLoader;
+
+impl AssetLoader for LevelAssetLoader {
+    fn load<'a>(
+        &'a self,
+        bytes: &'a [u8],
+        load_context: &'a mut bevy::asset::LoadContext,
+    ) -> bevy::utils::BoxedFuture<'a, Result<(), bevy::asset::Error>> {
+        Box::pin(async move {
+            let level = serde_json::from_slice::<Level>(bytes)?;
+            load_context.set_default_asset(LoadedAsset::new(level));
+            Ok(())
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["json"]
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub enum WallType {
     Neutral,
     Avoid,
     Goal,
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum LevelItem {
     Wall {
         wall_type: WallType,
-        transform: Transform,
+        position: Vec3,
+        rotation: Quat,
         size: Vec2,
     },
     FuelBall {
         position: Vec3,
     },
+    Light {
+        position: Vec3,
+        intensity: f32,
+    },
 }
 
-pub struct CurrentLevel {
-    pub next_level: Option<fn() -> Level>,
-    pub player_start: Vec3,
-    pub structure: Vec<Entity>,
-    pub player: Entity,
+pub enum CurrentLevel {
+    Loaded {
+        handle: Handle<Level>,
+        next_level: Option<String>,
+        player_start: Vec3,
+        structure: Vec<Entity>,
+        player: Entity,
+    },
+    Loading(Handle<Level>),
+}
+
+pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
+    if let CurrentLevel::Loaded {
+        structure, player, ..
+    } = current_level
+    {
+        debug!("clearing level");
+
+        commands.entity(*player).despawn_recursive();
+
+        for entity in structure {
+            commands.entity(*entity).despawn_recursive();
+        }
+    }
 }
 
 pub fn load_level(
@@ -45,6 +99,7 @@ pub fn load_level(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    handle: Handle<Level>,
     level: &Level,
 ) {
     debug!("started loading level");
@@ -55,14 +110,17 @@ pub fn load_level(
         .map(|item| match item {
             LevelItem::Wall {
                 wall_type,
-                transform,
+                position,
+                rotation,
                 size,
             } => match wall_type {
                 WallType::Neutral => commands
                     .spawn_bundle(WallBundle::new(
                         meshes,
                         materials,
-                        *transform,
+                        Transform::identity()
+                            .with_translation(*position)
+                            .with_rotation(*rotation),
                         *size,
                         Color::WHITE,
                     ))
@@ -71,7 +129,9 @@ pub fn load_level(
                     .spawn_bundle(WallBundle::new(
                         meshes,
                         materials,
-                        *transform,
+                        Transform::identity()
+                            .with_translation(*position)
+                            .with_rotation(*rotation),
                         *size,
                         Color::RED,
                     ))
@@ -81,7 +141,9 @@ pub fn load_level(
                     .spawn_bundle(WallBundle::new(
                         meshes,
                         materials,
-                        *transform,
+                        Transform::identity()
+                            .with_translation(*position)
+                            .with_rotation(*rotation),
                         *size,
                         Color::GREEN,
                     ))
@@ -90,6 +152,36 @@ pub fn load_level(
             },
             LevelItem::FuelBall { position } => commands
                 .spawn_bundle(FuelBallBundle::new(meshes, materials, *position))
+                .id(),
+            LevelItem::Light {
+                position,
+                intensity,
+            } => commands
+                .spawn_bundle(PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::UVSphere {
+                        radius: 0.1,
+                        sectors: 20,
+                        stacks: 20,
+                    })),
+                    material: materials.add(StandardMaterial {
+                        base_color: Color::WHITE,
+                        emissive: Color::rgba_linear(100.0, 100.0, 100.0, 0.0),
+                        ..default()
+                    }),
+                    transform: Transform::from_translation(*position),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(PointLightBundle {
+                        point_light: PointLight {
+                            intensity: *intensity,
+                            radius: 0.1,
+                            shadows_enabled: true,
+                            ..default()
+                        },
+                        ..default()
+                    });
+                })
                 .id(),
         })
         .collect();
@@ -101,16 +193,79 @@ pub fn load_level(
         Transform::from_translation(level.player_start),
     );
 
-    if let Some(overlay_fn) = level.initial_overlay {
-        overlay_fn(asset_server, commands, overlay, visibility_query);
+    if let Some(overlay_text) = &level.initial_overlay {
+        display_level_overlay(
+            asset_server,
+            commands,
+            overlay,
+            visibility_query,
+            overlay_text,
+        );
     }
 
     debug!("finished loading level");
 
-    commands.insert_resource(CurrentLevel {
-        next_level: level.next_level,
+    commands.insert_resource(CurrentLevel::Loaded {
+        handle,
+        next_level: level.next_level.clone(),
         player_start: level.player_start,
         structure: entities,
         player,
     });
+}
+
+fn reload_level(
+    mut asset_event: EventReader<AssetEvent<Level>>,
+    asset_server: Res<AssetServer>,
+    assets: Res<Assets<Level>>,
+    overlay: Res<Overlay>,
+    mut visibility_query: Query<&mut Visibility>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    current_level: Res<CurrentLevel>,
+) {
+    for event in asset_event.iter() {
+        debug!("level asset event: {:?}", event);
+
+        if let AssetEvent::Modified {
+            handle: modified_handle,
+        } = event
+        {
+            debug!("asset modified: {:?}", modified_handle);
+
+            if let CurrentLevel::Loaded {
+                handle: current_level_handle,
+                ..
+            } = current_level.as_ref()
+            {
+                if modified_handle == current_level_handle {
+                    if let Some(level) = assets.get(current_level_handle) {
+                        clear_level(&current_level, &mut commands);
+
+                        load_level(
+                            &asset_server,
+                            &overlay,
+                            &mut visibility_query,
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            current_level_handle.clone(),
+                            level,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct LevelPlugin;
+
+impl Plugin for LevelPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_asset_loader::<LevelAssetLoader>()
+            .add_asset::<Level>()
+            .add_system(reload_level);
+    }
 }

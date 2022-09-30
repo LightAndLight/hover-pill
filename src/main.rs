@@ -5,11 +5,12 @@ use bevy::{
 };
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_rapier3d::{prelude::*, render::RapierDebugRenderPlugin};
-use learn_bevy::{
+use hover_pill::{
     fuel::FuelPlugin,
     fuel_ball::FuelBallPlugin,
     game::GamePlugin,
     hover::HoverPlugin,
+    level::LevelPlugin,
     player::PlayerPlugin,
     ui::{self, UiPlugin},
     world::WorldPlugin,
@@ -21,8 +22,30 @@ fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
     }
 }
 
+fn setup(asset_server: Res<AssetServer>) {
+    asset_server.watch_for_changes().unwrap();
+}
+
 fn main() {
     let mut app = App::new();
+
+    app.add_plugins(DefaultPlugins);
+
+    if cfg!(debug_assertions) {
+        app.add_plugin(LogDiagnosticsPlugin::default())
+            .add_plugin(FrameTimeDiagnosticsPlugin::default())
+            .add_system(display_collision_events)
+            .add_plugin(RapierDebugRenderPlugin::default());
+
+        /*
+        if !cfg!(target_family = "wasm") {
+            app.insert_resource(AssetServerSettings {
+                watch_for_changes: true,
+                ..Default::default()
+            });
+        };
+        */
+    }
 
     app.insert_resource(WindowDescriptor {
         title: String::from("Hover Pill"),
@@ -31,7 +54,6 @@ fn main() {
         ..Default::default()
     })
     .insert_resource(ReportExecutionOrderAmbiguities::default())
-    .add_plugins(DefaultPlugins)
     .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
     .add_plugin(FuelPlugin)
     .add_plugin(FuelBallPlugin)
@@ -39,15 +61,10 @@ fn main() {
     .init_resource::<ui::Overlay>()
     .add_plugin(UiPlugin)
     .add_plugin(PlayerPlugin)
+    .add_plugin(LevelPlugin)
     .add_plugin(WorldPlugin)
-    .add_plugin(GamePlugin);
-
-    if cfg!(debug_assertions) {
-        app.add_plugin(LogDiagnosticsPlugin::default())
-            .add_plugin(FrameTimeDiagnosticsPlugin::default())
-            .add_system(display_collision_events)
-            .add_plugin(RapierDebugRenderPlugin::default());
-    }
+    .add_plugin(GamePlugin)
+    .add_startup_system(setup);
 
     if !cfg!(target_family = "wasm") {
         app.add_plugin(AtmospherePlugin);

@@ -1,11 +1,9 @@
-pub mod levels;
-
 use bevy::prelude::*;
 
 use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
-    level::{load_level, CurrentLevel},
+    level::{self, load_level, CurrentLevel},
     ui::{DisplayCompleteScreenEvent, NextLevelEvent, Overlay},
     world::PlayerHit,
 };
@@ -57,6 +55,33 @@ fn restart_level(
 fn next_level(
     mut next_level: EventReader<NextLevelEvent>,
     asset_server: Res<AssetServer>,
+    mut current_level: ResMut<CurrentLevel>,
+    mut commands: Commands,
+) {
+    for NextLevelEvent in next_level.iter() {
+        level::clear_level(&current_level, &mut commands);
+
+        if let CurrentLevel::Loaded { next_level, .. } = current_level.as_ref() {
+            match next_level {
+                Some(next_level_name) => {
+                    let next_level_path = format!("levels/{}.json", next_level_name);
+
+                    debug!("next_level_path: {:?}", next_level_path);
+                    let next_level_handle = asset_server.load::<level::Level, _>(&next_level_path);
+
+                    *current_level = CurrentLevel::Loading(next_level_handle);
+                }
+                None => {
+                    debug!("no next_level selected")
+                }
+            }
+        }
+    }
+}
+
+fn load_next_level(
+    asset_server: Res<AssetServer>,
+    assets: Res<Assets<level::Level>>,
     overlay: Res<Overlay>,
     current_level: Res<CurrentLevel>,
     mut visibility_query: Query<&mut Visibility>,
@@ -64,30 +89,18 @@ fn next_level(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    for NextLevelEvent in next_level.iter() {
-        commands.entity(current_level.player).despawn_recursive();
-
-        for entity in &current_level.structure {
-            commands.entity(*entity).despawn_recursive();
-        }
-
-        match current_level.next_level {
-            Some(make_next_level) => {
-                let next_level = make_next_level();
-
-                load_level(
-                    &asset_server,
-                    &overlay,
-                    &mut visibility_query,
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    &next_level,
-                );
-            }
-            None => {
-                debug!("no next_level selected")
-            }
+    if let CurrentLevel::Loading(next_level_handle) = current_level.as_ref() {
+        if let Some(level) = assets.get(next_level_handle) {
+            load_level(
+                &asset_server,
+                &overlay,
+                &mut visibility_query,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                next_level_handle.clone(),
+                level,
+            );
         }
     }
 }
@@ -99,6 +112,7 @@ impl Plugin for GamePlugin {
         app.add_system(reset_when_player_hits_avoid)
             .add_system(show_complete_screen_on_goal)
             .add_system(restart_level)
-            .add_system(next_level);
+            .add_system(next_level)
+            .add_system(load_next_level);
     }
 }

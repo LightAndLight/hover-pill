@@ -43,11 +43,12 @@ pub type OverlayFn = fn(
     visibility_query: &mut Query<&mut Visibility>,
 );
 
-pub fn display_tutorial_1(
+pub fn display_level_overlay(
     asset_server: &AssetServer,
     commands: &mut Commands,
     overlay: &Overlay,
     visibility_query: &mut Query<&mut Visibility>,
+    lines: &[String],
 ) {
     let style = TextStyle {
         font: asset_server.load("fonts/DejaVuSansMono.ttf"),
@@ -74,112 +75,14 @@ pub fn display_tutorial_1(
                     ..Default::default()
                 })
                 .with_children(|parent| {
-                    parent
-                        .spawn_bundle(TextBundle::from_section("w - move forward", style.clone()));
-                    parent
-                        .spawn_bundle(TextBundle::from_section("s - move backward", style.clone()));
-                    parent.spawn_bundle(TextBundle::from_section("a - move left", style.clone()));
-                    parent.spawn_bundle(TextBundle::from_section("d - move right", style.clone()));
-                    parent.spawn_bundle(TextBundle::from_section(
-                        "right click and drag - look around",
-                        style.clone(),
-                    ));
+                    for line in lines {
+                        parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
+                    }
                 });
 
             spawn_continue_button(parent, asset_server);
         })
         .insert(TutorialScreen::One);
-
-    let mut visibility = visibility_query.get_mut(overlay.id()).unwrap();
-    visibility.is_visible = true;
-}
-
-pub fn display_tutorial_2(
-    asset_server: &AssetServer,
-    commands: &mut Commands,
-    overlay: &Overlay,
-    visibility_query: &mut Query<&mut Visibility>,
-) {
-    let style = TextStyle {
-        font: asset_server.load("fonts/DejaVuSansMono.ttf"),
-        font_size: 40.0,
-        color: Color::WHITE,
-    };
-
-    let mut overlay = commands.entity(overlay.entity);
-    overlay
-        .with_children(|parent| {
-            parent
-                .spawn_bundle(NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        position: UiRect {
-                            top: Val::Px(200.0),
-                            ..Default::default()
-                        },
-                        flex_direction: FlexDirection::ColumnReverse,
-                        align_items: AlignItems::Center,
-                        ..Default::default()
-                    },
-                    color: Color::NONE.into(),
-                    ..Default::default()
-                })
-                .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle::from_section("space - hover", style.clone()));
-                });
-
-            spawn_continue_button(parent, asset_server);
-        })
-        .insert(TutorialScreen::Two);
-
-    let mut visibility = visibility_query.get_mut(overlay.id()).unwrap();
-    visibility.is_visible = true;
-}
-
-pub fn display_tutorial_3(
-    asset_server: &AssetServer,
-    commands: &mut Commands,
-    overlay: &Overlay,
-    visibility_query: &mut Query<&mut Visibility>,
-) {
-    let style = TextStyle {
-        font: asset_server.load("fonts/DejaVuSansMono.ttf"),
-        font_size: 40.0,
-        color: Color::WHITE,
-    };
-
-    let mut overlay = commands.entity(overlay.entity);
-    overlay
-        .with_children(|parent| {
-            parent
-                .spawn_bundle(NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        position: UiRect {
-                            top: Val::Px(200.0),
-                            ..Default::default()
-                        },
-                        flex_direction: FlexDirection::ColumnReverse,
-                        align_items: AlignItems::Center,
-                        ..Default::default()
-                    },
-                    color: Color::NONE.into(),
-                    ..Default::default()
-                })
-                .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle::from_sections([
-                        TextSection::new("red", {
-                            let mut style = style.clone();
-                            style.color = Color::RED;
-                            style
-                        }),
-                        TextSection::new(" - avoid", style.clone()),
-                    ]));
-                });
-
-            spawn_continue_button(parent, asset_server);
-        })
-        .insert(TutorialScreen::Two);
 
     let mut visibility = visibility_query.get_mut(overlay.id()).unwrap();
     visibility.is_visible = true;
