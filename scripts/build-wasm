@@ -1,4 +1,8 @@
 #! /usr/bin/env bash
 
-cargo build --release --target wasm32-unknown-unknown --target-dir target-wasm
+cargo build --profile wasm-release --target wasm32-unknown-unknown --target-dir target-wasm
+echo "Running wasm-bindgen..."
 wasm-bindgen --out-dir ./pkg --target web target-wasm/wasm32-unknown-unknown/release/hover-pill.wasm
+echo "Running wasm-opt..."
+wasm-opt -O pkg/hover-pill_bg.wasm --output pkg/hover-pill_bg.optimised.wasm
+mv pkg/hover-pill_bg.optimised.wasm pkg/hover-pill_bg.wasm

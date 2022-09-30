@@ -43,6 +43,7 @@
                 inherit rustVersion;
               })
               pkgs.wasm-bindgen-cli
+              pkgs.binaryen
 
               # Required to build Rust dependencies
               pkgs.cmake
