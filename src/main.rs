@@ -10,6 +10,7 @@ use hover_pill::{
     fuel_ball::FuelBallPlugin,
     game::GamePlugin,
     hover::HoverPlugin,
+    level::LevelPlugin,
     player::PlayerPlugin,
     ui::{self, UiPlugin},
     world::WorldPlugin,
@@ -39,6 +40,7 @@ fn main() {
     .init_resource::<ui::Overlay>()
     .add_plugin(UiPlugin)
     .add_plugin(PlayerPlugin)
+    .add_plugin(LevelPlugin)
     .add_plugin(WorldPlugin)
     .add_plugin(GamePlugin);
 

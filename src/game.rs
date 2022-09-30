@@ -1,5 +1,3 @@
-pub mod levels;
-
 use bevy::prelude::*;
 
 use crate::{
@@ -78,11 +76,6 @@ fn next_level(
                 Some(next_level_name) => {
                     let next_level_path = format!("levels/{}.json", next_level_name);
 
-                    let _ = levels::tutorial_1();
-                    let _ = levels::tutorial_2();
-                    let _ = levels::tutorial_3();
-                    let _ = levels::level_1();
-
                     debug!("next_level_path: {:?}", next_level_path);
                     let next_level_handle = asset_server.load::<level::Level, _>(&next_level_path);
 
@@ -125,8 +118,7 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(level::LevelPlugin)
-            .add_system(reset_when_player_hits_avoid)
+        app.add_system(reset_when_player_hits_avoid)
             .add_system(show_complete_screen_on_goal)
             .add_system(restart_level)
             .add_system(next_level)

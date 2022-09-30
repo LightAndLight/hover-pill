@@ -3,7 +3,9 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{controls::Controlled, game, level::load_level, ui::Overlay};
+use crate::{controls::Controlled, level};
+
+const WORLD_BOX_SIZE: f32 = 14.0;
 
 #[derive(Bundle)]
 pub struct WallBundle {
@@ -92,21 +94,12 @@ fn handle_player_collisions(
 
 pub fn setup(
     asset_server: Res<AssetServer>,
-    overlay: Res<Overlay>,
-    mut visibility_query: Query<&mut Visibility>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    load_level(
-        &asset_server,
-        &overlay,
-        &mut visibility_query,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-        &game::levels::tutorial_1(),
-    );
+    let next_level_handle = asset_server.load("levels/tutorial_1.json");
+    commands.insert_resource(level::CurrentLevel::Loading(next_level_handle));
 
     commands
         .spawn_bundle(PbrBundle {
@@ -120,7 +113,7 @@ pub fn setup(
                 emissive: Color::rgba_linear(100.0, 100.0, 100.0, 0.0),
                 ..default()
             }),
-            transform: Transform::from_xyz(0.0, game::levels::WORLD_BOX_SIZE / 2.0, 0.0),
+            transform: Transform::from_xyz(0.0, WORLD_BOX_SIZE / 2.0, 0.0),
             ..default()
         })
         .with_children(|parent| {
