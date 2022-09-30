@@ -57,6 +57,47 @@ fn restart_level(
 fn next_level(
     mut next_level: EventReader<NextLevelEvent>,
     asset_server: Res<AssetServer>,
+    mut current_level: ResMut<CurrentLevel>,
+    mut commands: Commands,
+) {
+    for NextLevelEvent in next_level.iter() {
+        if let CurrentLevel::Loaded {
+            next_level,
+            structure,
+            player,
+            ..
+        } = current_level.as_ref()
+        {
+            commands.entity(*player).despawn_recursive();
+
+            for entity in structure {
+                commands.entity(*entity).despawn_recursive();
+            }
+
+            match next_level {
+                Some(next_level_name) => {
+                    let next_level_path = format!("levels/{}.json", next_level_name);
+
+                    let _ = levels::tutorial_1();
+                    let _ = levels::tutorial_2();
+                    let _ = levels::tutorial_3();
+                    let _ = levels::level_1();
+
+                    debug!("next_level_path: {:?}", next_level_path);
+                    let next_level_handle = asset_server.load::<level::Level, _>(&next_level_path);
+
+                    *current_level = CurrentLevel::Loading(next_level_handle);
+                }
+                None => {
+                    debug!("no next_level selected")
+                }
+            }
+        }
+    }
+}
+
+fn load_next_level(
+    asset_server: Res<AssetServer>,
     assets: Res<Assets<level::Level>>,
     overlay: Res<Overlay>,
     current_level: Res<CurrentLevel>,
@@ -65,32 +106,17 @@ fn next_level(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    for NextLevelEvent in next_level.iter() {
-        commands.entity(current_level.player).despawn_recursive();
-
-        for entity in &current_level.structure {
-            commands.entity(*entity).despawn_recursive();
-        }
-
-        match &current_level.next_level {
-            Some(next_level_name) => {
-                let next_level_path = format!("levels/{}.json", next_level_name);
-
-                let next_level = asset_server.load::<level::Level, _>(&next_level_path);
-
-                load_level(
-                    &asset_server,
-                    &overlay,
-                    &mut visibility_query,
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    assets.get(&next_level).unwrap(),
-                );
-            }
-            None => {
-                debug!("no next_level selected")
-            }
+    if let CurrentLevel::Loading(next_level_handle) = current_level.as_ref() {
+        if let Some(level) = assets.get(next_level_handle) {
+            load_level(
+                &asset_server,
+                &overlay,
+                &mut visibility_query,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                level,
+            );
         }
     }
 }
@@ -99,9 +125,11 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(reset_when_player_hits_avoid)
+        app.add_plugin(level::LevelPlugin)
+            .add_system(reset_when_player_hits_avoid)
             .add_system(show_complete_screen_on_goal)
             .add_system(restart_level)
-            .add_system(next_level);
+            .add_system(next_level)
+            .add_system(load_next_level);
     }
 }

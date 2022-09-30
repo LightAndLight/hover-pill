@@ -77,10 +77,6 @@ pub fn display_level_overlay(
                 .with_children(|parent| {
                     for line in lines {
                         parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
-                        parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
-                        parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
-                        parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
-                        parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
                     }
                 });
 

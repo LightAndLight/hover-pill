@@ -1,4 +1,8 @@
-use bevy::{prelude::*, reflect::TypeUuid};
+use bevy::{
+    asset::{AssetLoader, LoadedAsset},
+    prelude::*,
+    reflect::TypeUuid,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -15,6 +19,27 @@ pub struct Level {
     pub player_start: Vec3,
     pub initial_overlay: Option<Vec<String>>,
     pub structure: Vec<LevelItem>,
+}
+
+#[derive(Default)]
+pub struct LevelAssetLoader;
+
+impl AssetLoader for LevelAssetLoader {
+    fn load<'a>(
+        &'a self,
+        bytes: &'a [u8],
+        load_context: &'a mut bevy::asset::LoadContext,
+    ) -> bevy::utils::BoxedFuture<'a, Result<(), bevy::asset::Error>> {
+        Box::pin(async move {
+            let level = serde_json::from_slice::<Level>(bytes)?;
+            load_context.set_default_asset(LoadedAsset::new(level));
+            Ok(())
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["json"]
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -37,11 +62,14 @@ pub enum LevelItem {
     },
 }
 
-pub struct CurrentLevel {
-    pub next_level: Option<String>,
-    pub player_start: Vec3,
-    pub structure: Vec<Entity>,
-    pub player: Entity,
+pub enum CurrentLevel {
+    Loaded {
+        next_level: Option<String>,
+        player_start: Vec3,
+        structure: Vec<Entity>,
+        player: Entity,
+    },
+    Loading(Handle<Level>),
 }
 
 pub fn load_level(
@@ -126,10 +154,19 @@ pub fn load_level(
 
     debug!("finished loading level");
 
-    commands.insert_resource(CurrentLevel {
+    commands.insert_resource(CurrentLevel::Loaded {
         next_level: level.next_level.clone(),
         player_start: level.player_start,
         structure: entities,
         player,
     });
+}
+
+pub struct LevelPlugin;
+
+impl Plugin for LevelPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_asset_loader::<LevelAssetLoader>()
+            .add_asset::<Level>();
+    }
 }

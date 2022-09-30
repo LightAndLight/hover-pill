@@ -33,7 +33,7 @@ pub fn tutorial_1() -> Level {
         ],
     };
 
-    let file = std::fs::File::create("assets/tutorial_1.json").unwrap();
+    let file = std::fs::File::create("assets/levels/tutorial_1.json").unwrap();
     serde_json::to_writer_pretty(file, &level).unwrap();
     level
 }
@@ -65,7 +65,7 @@ pub fn tutorial_2() -> Level {
         ],
     };
 
-    let file = std::fs::File::create("assets/tutorial_1.json").unwrap();
+    let file = std::fs::File::create("assets/levels/tutorial_2.json").unwrap();
     serde_json::to_writer_pretty(file, &level).unwrap();
     level
 }
@@ -97,7 +97,7 @@ pub fn tutorial_3() -> Level {
         ],
     };
 
-    let file = std::fs::File::create("assets/tutorial_1.json").unwrap();
+    let file = std::fs::File::create("assets/levels/tutorial_3.json").unwrap();
     serde_json::to_writer_pretty(file, &level).unwrap();
     level
 }
@@ -186,7 +186,7 @@ pub fn level_1() -> Level {
         ],
     };
 
-    let file = std::fs::File::create("assets/tutorial_1.json").unwrap();
+    let file = std::fs::File::create("assets/levels/level_1.json").unwrap();
     serde_json::to_writer_pretty(file, &level).unwrap();
     level
 }
