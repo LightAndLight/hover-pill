@@ -25,5 +25,7 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-[profile.release]
-lto = true
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+codegen-units = 1
