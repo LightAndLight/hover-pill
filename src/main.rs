@@ -23,11 +23,21 @@ fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
 }
 
 fn setup(asset_server: Res<AssetServer>) {
-    asset_server.watch_for_changes().unwrap();
+    if !cfg!(target_family = "wasm") {
+        asset_server.watch_for_changes().unwrap();
+    }
 }
 
 fn main() {
     let mut app = App::new();
+
+    app.insert_resource(WindowDescriptor {
+        title: String::from("Hover Pill"),
+        canvas: Some(String::from("#app")),
+        ..Default::default()
+    })
+    .insert_resource(ReportExecutionOrderAmbiguities::default())
+    .init_resource::<ui::Overlay>();
 
     app.add_plugins(DefaultPlugins);
 
@@ -47,24 +57,16 @@ fn main() {
         */
     }
 
-    app.insert_resource(WindowDescriptor {
-        title: String::from("Hover Pill"),
-        #[cfg(target_family = "wasm")]
-        canvas: Some(String::from("#app")),
-        ..Default::default()
-    })
-    .insert_resource(ReportExecutionOrderAmbiguities::default())
-    .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-    .add_plugin(FuelPlugin)
-    .add_plugin(FuelBallPlugin)
-    .add_plugin(HoverPlugin)
-    .init_resource::<ui::Overlay>()
-    .add_plugin(UiPlugin)
-    .add_plugin(PlayerPlugin)
-    .add_plugin(LevelPlugin)
-    .add_plugin(WorldPlugin)
-    .add_plugin(GamePlugin)
-    .add_startup_system(setup);
+    app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugin(FuelPlugin)
+        .add_plugin(FuelBallPlugin)
+        .add_plugin(HoverPlugin)
+        .add_plugin(UiPlugin)
+        .add_plugin(PlayerPlugin)
+        .add_plugin(LevelPlugin)
+        .add_plugin(WorldPlugin)
+        .add_plugin(GamePlugin)
+        .add_startup_system(setup);
 
     if !cfg!(target_family = "wasm") {
         app.add_plugin(AtmospherePlugin);
