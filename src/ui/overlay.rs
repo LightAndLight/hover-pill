@@ -2,12 +2,6 @@ use bevy::prelude::*;
 
 use super::{button, Overlay};
 
-#[derive(Component)]
-pub enum TutorialScreen {
-    One,
-    Two,
-}
-
 fn spawn_continue_button(parent: &mut ChildBuilder, asset_server: &AssetServer) {
     parent
         .spawn_bundle(ButtonBundle {
@@ -57,32 +51,30 @@ pub fn display_level_overlay(
     };
 
     let mut overlay = commands.entity(overlay.entity);
-    overlay
-        .with_children(|parent| {
-            parent
-                .spawn_bundle(NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        position: UiRect {
-                            top: Val::Px(200.0),
-                            ..Default::default()
-                        },
-                        flex_direction: FlexDirection::ColumnReverse,
-                        align_items: AlignItems::Center,
+    overlay.with_children(|parent| {
+        parent
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        top: Val::Px(200.0),
                         ..Default::default()
                     },
-                    color: Color::NONE.into(),
+                    flex_direction: FlexDirection::ColumnReverse,
+                    align_items: AlignItems::Center,
                     ..Default::default()
-                })
-                .with_children(|parent| {
-                    for line in lines {
-                        parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
-                    }
-                });
+                },
+                color: Color::NONE.into(),
+                ..Default::default()
+            })
+            .with_children(|parent| {
+                for line in lines {
+                    parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
+                }
+            });
 
-            spawn_continue_button(parent, asset_server);
-        })
-        .insert(TutorialScreen::One);
+        spawn_continue_button(parent, asset_server);
+    });
 
     let mut visibility = visibility_query.get_mut(overlay.id()).unwrap();
     visibility.is_visible = true;
@@ -100,15 +92,14 @@ fn handle_continue(
             visibility.is_visible = false;
 
             let mut overlay = commands.entity(overlay.entity);
-            overlay.remove::<TutorialScreen>();
             overlay.despawn_descendants();
         }
     }
 }
 
-pub struct TutorialPlugin;
+pub struct OverlayPlugin;
 
-impl Plugin for TutorialPlugin {
+impl Plugin for OverlayPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(handle_continue);
     }

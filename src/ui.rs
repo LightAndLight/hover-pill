@@ -1,5 +1,5 @@
 pub mod button;
-pub mod tutorial;
+pub mod overlay;
 
 use bevy::prelude::*;
 
@@ -204,7 +204,7 @@ impl Plugin for UiPlugin {
             .add_event::<NextLevelEvent>()
             .add_event::<DisplayCompleteScreenEvent>()
             .add_plugin(button::ButtonPlugin)
-            .add_plugin(tutorial::TutorialPlugin)
+            .add_plugin(overlay::OverlayPlugin)
             .add_system(handle_next_level)
             .add_system(display_complete_screen)
             .add_system(update_fuel_bar);

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     fuel_ball::FuelBallBundle,
     player::spawn_player,
-    ui::{tutorial::display_level_overlay, Overlay},
+    ui::{overlay::display_level_overlay, Overlay},
     world::{Avoid, Goal, WallBundle},
 };
 
