@@ -68,6 +68,8 @@ pub enum LevelItem {
 }
 
 pub enum CurrentLevel {
+    None,
+    Loading(Handle<Level>),
     Loaded {
         handle: Handle<Level>,
         next_level: Option<String>,
@@ -75,7 +77,12 @@ pub enum CurrentLevel {
         structure: Vec<Entity>,
         player: Entity,
     },
-    Loading(Handle<Level>),
+}
+
+impl Default for CurrentLevel {
+    fn default() -> Self {
+        CurrentLevel::None
+    }
 }
 
 pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
@@ -95,7 +102,7 @@ pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
 
 pub fn load_level(
     asset_server: &AssetServer,
-    overlay: &Overlay,
+    // overlay: &Overlay,
     visibility_query: &mut Query<&mut Visibility>,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -197,6 +204,7 @@ pub fn load_level(
     );
 
     if let Some(overlay_text) = &level.initial_overlay {
+        /*
         display_level_overlay(
             asset_server,
             commands,
@@ -204,6 +212,7 @@ pub fn load_level(
             visibility_query,
             overlay_text,
         );
+        */
     }
 
     debug!("finished loading level");
@@ -249,7 +258,7 @@ pub fn reload_level(
 
                         load_level(
                             &asset_server,
-                            &overlay,
+                            // &overlay,
                             &mut visibility_query,
                             &mut commands,
                             &mut meshes,
@@ -265,11 +274,58 @@ pub fn reload_level(
     }
 }
 
+pub struct LoadEvent {
+    pub path: String,
+}
+
 pub struct LevelPlugin;
+
+fn handle_load_events(
+    mut commands: Commands,
+    mut input_events: EventReader<LoadEvent>,
+    asset_server: Res<AssetServer>,
+) {
+    for event in input_events.iter() {
+        let handle = asset_server.load(&event.path);
+        commands.insert_resource(CurrentLevel::Loading(handle));
+    }
+}
+
+fn finish_loading(
+    asset_server: Res<AssetServer>,
+    assets: Res<Assets<Level>>,
+    // overlay: Res<Overlay>,
+    current_level: Res<CurrentLevel>,
+    mut visibility_query: Query<&mut Visibility>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut fuel_changed: EventWriter<FuelChanged>,
+) {
+    if let CurrentLevel::Loading(next_level_handle) = current_level.as_ref() {
+        if let Some(level) = assets.get(next_level_handle) {
+            load_level(
+                &asset_server,
+                // &overlay,
+                &mut visibility_query,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut fuel_changed,
+                next_level_handle.clone(),
+                level,
+            );
+        }
+    }
+}
 
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset_loader::<LevelAssetLoader>()
-            .add_asset::<Level>();
+            .add_asset::<Level>()
+            .add_event::<LoadEvent>()
+            .init_resource::<CurrentLevel>()
+            .add_system(handle_load_events)
+            .add_system(finish_loading);
     }
 }

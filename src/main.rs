@@ -5,11 +5,11 @@ use hover_pill::{
     controls::ControlsPlugin,
     fuel::FuelPlugin,
     fuel_ball::FuelBallPlugin,
-    game::{GamePlugin, GameState},
+    game::GamePlugin,
     hover::HoverPlugin,
     level::LevelPlugin,
     player::PlayerPlugin,
-    ui::{self, UiPlugin},
+    ui::{self, UiPlugin, UI},
     world::WorldPlugin,
 };
 
@@ -19,10 +19,14 @@ fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
     }
 }
 
-fn setup(asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut ui: ResMut<UI>) {
     if !cfg!(target_family = "wasm") {
         asset_server.watch_for_changes().unwrap();
     }
+
+    ui::set(&mut commands, &mut ui, |commands| {
+        ui::main_menu::create(&asset_server, commands)
+    })
 }
 
 fn main() {
@@ -46,6 +50,7 @@ fn main() {
         app.add_plugin(AtmospherePlugin);
     };
 
+    /*
     app.add_state(GameState::MainMenu)
         .add_system_set(SystemSet::on_enter(GameState::MainMenu).with_system(ui::main_menu::setup))
         .add_system_set(
@@ -54,6 +59,7 @@ fn main() {
         .add_system_set(
             SystemSet::on_exit(GameState::MainMenu).with_system(ui::main_menu::teardown),
         );
+     */
 
     if cfg!(debug_assertions) {
         app.add_plugin(RapierDebugRenderPlugin::default())

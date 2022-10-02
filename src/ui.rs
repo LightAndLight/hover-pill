@@ -6,21 +6,29 @@ use bevy::{ecs::system::EntityCommands, prelude::*};
 
 use crate::fuel::FuelChanged;
 
-#[derive(Default)]
 pub struct UI {
     root: Option<Entity>,
+    camera: Option<Entity>,
+}
+
+impl FromWorld for UI {
+    fn from_world(world: &mut World) -> Self {
+        let entity = world.spawn().insert_bundle(Camera2dBundle::default()).id();
+        Self {
+            root: None,
+            camera: Some(entity),
+        }
+    }
 }
 
 pub fn clear(commands: &mut Commands, ui: &mut UI) {
-    match ui.root {
-        Some(entity) => commands.entity(entity).despawn_recursive(),
-        None => todo!(),
+    if let Some(entity) = ui.root {
+        commands.entity(entity).despawn_recursive();
+        ui.root = None;
     }
-
-    ui.root = None;
 }
 
-pub fn replace(
+pub fn set(
     commands: &mut Commands,
     ui: &mut UI,
     create_new_ui: impl FnOnce(&mut Commands) -> Entity,
@@ -34,6 +42,13 @@ pub fn update(commands: &mut Commands, ui: &mut UI, update_ui: impl FnOnce(Entit
     match ui.root {
         Some(entity) => update_ui(commands.entity(entity)),
         None => {}
+    }
+}
+
+pub fn remove_camera(commands: &mut Commands, ui: &mut UI) {
+    if let Some(entity) = ui.camera {
+        commands.entity(entity).despawn_recursive();
+        ui.camera = None;
     }
 }
 
@@ -208,6 +223,7 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<UI>()
             .add_event::<NextLevelEvent>()
-            .add_event::<DisplayCompleteScreenEvent>();
+            .add_event::<DisplayCompleteScreenEvent>()
+            .add_plugin(main_menu::MainMenuPlugin);
     }
 }

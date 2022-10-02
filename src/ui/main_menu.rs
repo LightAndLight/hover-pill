@@ -1,35 +1,30 @@
 use bevy::prelude::*;
 
-use crate::game::GameState;
-
 use super::button::{ButtonName, ButtonPressEvent};
 
+pub enum MainMenuEvent {
+    Play,
+    LevelEditor,
+}
+
 pub fn handle_buttons(
-    mut events: EventReader<ButtonPressEvent>,
-    mut state: ResMut<State<GameState>>,
+    mut input_events: EventReader<ButtonPressEvent>,
+    mut output_events: EventWriter<MainMenuEvent>,
 ) {
-    for event in events.iter() {
+    for event in input_events.iter() {
         match event.name {
             ButtonName::Play => {
-                if let GameState::MainMenu = state.current() {
-                    state
-                        .set(GameState::Playing)
-                        .unwrap_or_else(|err| panic!("{}", err));
-                }
+                output_events.send(MainMenuEvent::Play);
             }
             ButtonName::LevelEditor => {
-                debug!("level editor clicked")
+                output_events.send(MainMenuEvent::LevelEditor);
             }
             _ => {}
         }
     }
 }
 
-pub struct MainMenu {
-    entities: Vec<Entity>,
-}
-
-pub fn setup(asset_server: Res<AssetServer>, mut commands: Commands) {
+pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
     let style = TextStyle {
         font: asset_server.load("fonts/DejaVuSansMono.ttf"),
         font_size: 40.0,
@@ -42,87 +37,82 @@ pub fn setup(asset_server: Res<AssetServer>, mut commands: Commands) {
         ..Default::default()
     };
 
-    let entities = vec![
-        commands.spawn_bundle(Camera2dBundle::default()).id(),
-        commands
-            .spawn_bundle(NodeBundle {
+    commands
+        .spawn_bundle(NodeBundle {
+            style: Style {
+                size: Size {
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                },
+                flex_direction: FlexDirection::ColumnReverse,
+                align_items: AlignItems::Center,
+                ..Default::default()
+            },
+            color: Color::rgb(0.4, 0.7, 1.0).into(),
+            ..Default::default()
+        })
+        .with_children(|parent| {
+            parent.spawn_bundle(TextBundle {
                 style: Style {
-                    size: Size {
-                        width: Val::Percent(100.0),
-                        height: Val::Percent(100.0),
+                    margin: UiRect {
+                        top: Val::Px(10.0),
+                        bottom: Val::Px(10.0),
+                        ..Default::default()
                     },
-                    flex_direction: FlexDirection::ColumnReverse,
-                    align_items: AlignItems::Center,
                     ..Default::default()
                 },
-                color: Color::rgb(0.4, 0.7, 1.0).into(),
-                ..Default::default()
-            })
-            .with_children(|parent| {
-                parent.spawn_bundle(TextBundle {
+                ..TextBundle::from_section("Hover Pill", style.clone())
+            });
+
+            parent
+                .spawn_bundle(ButtonBundle {
                     style: Style {
-                        margin: UiRect {
-                            top: Val::Px(10.0),
-                            bottom: Val::Px(10.0),
-                            ..Default::default()
-                        },
+                        padding: UiRect::all(Val::Px(10.0)),
+                        margin,
                         ..Default::default()
                     },
-                    ..TextBundle::from_section("Hover Pill", style.clone())
-                });
-
-                parent
-                    .spawn_bundle(ButtonBundle {
-                        style: Style {
-                            padding: UiRect::all(Val::Px(10.0)),
-                            margin,
-                            ..Default::default()
+                    ..Default::default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle::from_section(
+                        "Play",
+                        TextStyle {
+                            color: Color::BLACK,
+                            font_size: 30.0,
+                            ..style.clone()
                         },
-                        ..Default::default()
-                    })
-                    .with_children(|parent| {
-                        parent.spawn_bundle(TextBundle::from_section(
-                            "Play",
-                            TextStyle {
-                                color: Color::BLACK,
-                                font_size: 30.0,
-                                ..style.clone()
-                            },
-                        ));
-                    })
-                    .insert(ButtonName::Play);
+                    ));
+                })
+                .insert(ButtonName::Play);
 
-                parent
-                    .spawn_bundle(ButtonBundle {
-                        style: Style {
-                            padding: UiRect::all(Val::Px(10.0)),
-                            margin,
-                            ..Default::default()
+            parent
+                .spawn_bundle(ButtonBundle {
+                    style: Style {
+                        padding: UiRect::all(Val::Px(10.0)),
+                        margin,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .with_children(|parent| {
+                    parent.spawn_bundle(TextBundle::from_section(
+                        "Level Editor",
+                        TextStyle {
+                            color: Color::BLACK,
+                            font_size: 30.0,
+                            ..style
                         },
-                        ..Default::default()
-                    })
-                    .with_children(|parent| {
-                        parent.spawn_bundle(TextBundle::from_section(
-                            "Level Editor",
-                            TextStyle {
-                                color: Color::BLACK,
-                                font_size: 30.0,
-                                ..style
-                            },
-                        ));
-                    })
-                    .insert(ButtonName::LevelEditor);
-            })
-            .id(),
-    ];
-
-    commands.insert_resource(MainMenu { entities });
+                    ));
+                })
+                .insert(ButtonName::LevelEditor);
+        })
+        .id()
 }
 
-pub fn teardown(main_menu: Res<MainMenu>, mut commands: Commands) {
-    for entity in &main_menu.entities {
-        commands.entity(*entity).despawn_recursive();
-    }
+pub struct MainMenuPlugin;
 
-    commands.remove_resource::<MainMenu>();
+impl Plugin for MainMenuPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<MainMenuEvent>().add_system(handle_buttons);
+    }
 }

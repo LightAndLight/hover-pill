@@ -6,8 +6,9 @@ use crate::{
     level::{self, CurrentLevel},
     ui::{
         self,
+        main_menu::MainMenuEvent,
         overlay::{self, Overlay},
-        DisplayCompleteScreenEvent, NextLevelEvent,
+        DisplayCompleteScreenEvent, NextLevelEvent, UI,
     },
     world::PlayerHit,
 };
@@ -83,73 +84,45 @@ fn next_level(
     }
 }
 
-fn load_next_level(
-    asset_server: Res<AssetServer>,
-    assets: Res<Assets<level::Level>>,
-    overlay: Res<Overlay>,
-    current_level: Res<CurrentLevel>,
-    mut visibility_query: Query<&mut Visibility>,
+pub fn handle_main_menu(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut fuel_changed: EventWriter<FuelChanged>,
+    mut input_events: EventReader<MainMenuEvent>,
+    mut ui: ResMut<UI>,
+    mut output_events: EventWriter<level::LoadEvent>,
 ) {
-    if let CurrentLevel::Loading(next_level_handle) = current_level.as_ref() {
-        if let Some(level) = assets.get(next_level_handle) {
-            level::load_level(
-                &asset_server,
-                &overlay,
-                &mut visibility_query,
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &mut fuel_changed,
-                next_level_handle.clone(),
-                level,
-            );
+    for event in input_events.iter() {
+        match event {
+            MainMenuEvent::Play => {
+                debug!("play");
+
+                ui::clear(&mut commands, &mut ui);
+                ui::remove_camera(&mut commands, &mut ui);
+
+                output_events.send(level::LoadEvent {
+                    path: "levels/tutorial_1.json".into(),
+                })
+            }
+            MainMenuEvent::LevelEditor => {
+                debug!("level editor")
+            }
         }
     }
-}
-
-fn load_level(asset_server: &AssetServer, path: &str, commands: &mut Commands) {
-    let next_level_handle = asset_server.load(path);
-    commands.insert_resource(level::CurrentLevel::Loading(next_level_handle));
-}
-
-pub fn setup(asset_server: Res<AssetServer>, mut commands: Commands) {
-    commands.init_resource::<Overlay>();
-    ui::display_fuel_bar(&mut commands, &asset_server);
-    load_level(&asset_server, "levels/tutorial_1.json", &mut commands);
-}
-
-pub fn teardown(mut commands: Commands) {
-    commands.remove_resource::<Overlay>();
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GameState {
-    MainMenu,
-    Playing,
 }
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(GameState::Playing).with_system(setup))
-            .add_system_set(
-                SystemSet::on_update(GameState::Playing)
-                    .with_system(reset_when_player_hits_avoid)
-                    .with_system(show_complete_screen_on_goal)
-                    .with_system(restart_level)
-                    .with_system(next_level)
-                    .with_system(load_next_level)
-                    .with_system(overlay::handle_continue)
-                    .with_system(ui::display_complete_screen)
-                    .with_system(ui::handle_next_level)
-                    .with_system(ui::update_fuel_bar)
-                    .with_system(level::reload_level),
-            )
-            .add_system_set(SystemSet::on_exit(GameState::Playing).with_system(teardown));
+        app.add_system(reset_when_player_hits_avoid)
+            .add_system(show_complete_screen_on_goal)
+            .add_system(restart_level)
+            // .add_system(next_level)
+            // .add_system(load_next_level)
+            .add_system(handle_main_menu)
+            // .add_system(ui::display_complete_screen)
+            // .add_system(ui::handle_next_level)
+            .add_system(ui::update_fuel_bar)
+            // .add_system(level::reload_level);
+            ;
     }
 }
