@@ -9,7 +9,7 @@ use crate::{
     fuel::FuelChanged,
     fuel_ball::FuelBallBundle,
     player::spawn_player,
-    ui::{overlay::display_level_overlay, overlay::Overlay},
+    ui::{overlay, UI},
     world::{Avoid, Goal, WallBundle},
 };
 
@@ -102,8 +102,7 @@ pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
 
 pub fn load_level(
     asset_server: &AssetServer,
-    // overlay: &Overlay,
-    visibility_query: &mut Query<&mut Visibility>,
+    ui: &mut UI,
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
@@ -204,15 +203,7 @@ pub fn load_level(
     );
 
     if let Some(overlay_text) = &level.initial_overlay {
-        /*
-        display_level_overlay(
-            asset_server,
-            commands,
-            overlay,
-            visibility_query,
-            overlay_text,
-        );
-        */
+        overlay::display_level(asset_server, commands, ui, overlay_text);
     }
 
     debug!("finished loading level");
@@ -230,8 +221,7 @@ pub fn reload_level(
     mut asset_event: EventReader<AssetEvent<Level>>,
     asset_server: Res<AssetServer>,
     assets: Res<Assets<Level>>,
-    overlay: Res<Overlay>,
-    mut visibility_query: Query<&mut Visibility>,
+    mut ui: ResMut<UI>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -258,8 +248,7 @@ pub fn reload_level(
 
                         load_level(
                             &asset_server,
-                            // &overlay,
-                            &mut visibility_query,
+                            &mut ui,
                             &mut commands,
                             &mut meshes,
                             &mut materials,
@@ -283,9 +272,11 @@ pub struct LevelPlugin;
 fn handle_load_events(
     mut commands: Commands,
     mut input_events: EventReader<LoadEvent>,
+    current_level: Res<CurrentLevel>,
     asset_server: Res<AssetServer>,
 ) {
     for event in input_events.iter() {
+        clear_level(&current_level, &mut commands);
         let handle = asset_server.load(&event.path);
         commands.insert_resource(CurrentLevel::Loading(handle));
     }
@@ -294,20 +285,23 @@ fn handle_load_events(
 fn finish_loading(
     asset_server: Res<AssetServer>,
     assets: Res<Assets<Level>>,
-    // overlay: Res<Overlay>,
+    mut ui: ResMut<UI>,
     current_level: Res<CurrentLevel>,
-    mut visibility_query: Query<&mut Visibility>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut fuel_changed: EventWriter<FuelChanged>,
 ) {
     if let CurrentLevel::Loading(next_level_handle) = current_level.as_ref() {
+        debug!(
+            "loading {:?}",
+            asset_server.get_handle_path(next_level_handle)
+        );
+
         if let Some(level) = assets.get(next_level_handle) {
             load_level(
                 &asset_server,
-                // &overlay,
-                &mut visibility_query,
+                &mut ui,
                 &mut commands,
                 &mut meshes,
                 &mut materials,
