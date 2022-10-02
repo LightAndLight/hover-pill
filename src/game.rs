@@ -85,6 +85,33 @@ pub fn handle_main_menu(
     }
 }
 
+fn handle_next_level(
+    mut commands: Commands,
+    mut input_events: EventReader<ui::overlay::level_complete::NextLevelEvent>,
+    current_level: Res<level::CurrentLevel>,
+    mut ui: ResMut<UI>,
+    overlay: Res<ui::overlay::Overlay>,
+    mut output_events: EventWriter<level::LoadEvent>,
+) {
+    use ui::overlay::level_complete::NextLevelEvent;
+
+    for NextLevelEvent in input_events.iter() {
+        debug!("next");
+
+        ui::overlay::remove(&mut commands, &mut ui, &overlay);
+
+        if let level::CurrentLevel::Loaded {
+            next_level: Some(next_level),
+            ..
+        } = current_level.as_ref()
+        {
+            output_events.send(level::LoadEvent {
+                path: format!("levels/{}.json", next_level),
+            });
+        }
+    }
+}
+
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
@@ -92,12 +119,7 @@ impl Plugin for GamePlugin {
         app.add_system(reset_when_player_hits_avoid)
             .add_system(handle_goal)
             .add_system(restart_level)
-            // .add_system(next_level)
-            // .add_system(load_next_level)
             .add_system(handle_main_menu)
-            // .add_system(ui::display_complete_screen)
-            // .add_system(ui::handle_next_level)
-            // .add_system(level::reload_level);
-            ;
+            .add_system(handle_next_level);
     }
 }

@@ -1,9 +1,12 @@
 use bevy::prelude::*;
 
-use crate::{
-    level,
-    ui::{button, UI},
-};
+use crate::ui::{button, UI};
+
+pub struct NextLevelEvent;
+
+fn next_level_callback(commands: &mut Commands) {
+    commands.add(|world: &mut World| world.send_event(NextLevelEvent))
+}
 
 pub fn display(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI) {
     super::display(commands, ui, |parent| {
@@ -70,42 +73,17 @@ pub fn display(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI)
                             },
                         ));
                     })
-                    .insert(button::ButtonName::Next);
+                    .insert(button::OnClick {
+                        callback: next_level_callback,
+                    });
             });
     });
-}
-
-fn handle_next(
-    mut commands: Commands,
-    mut button_press: EventReader<button::ButtonPressEvent>,
-    current_level: Res<level::CurrentLevel>,
-    mut ui: ResMut<UI>,
-    overlay: Res<super::Overlay>,
-    mut output_events: EventWriter<level::LoadEvent>,
-) {
-    for event in button_press.iter() {
-        if let button::ButtonName::Next = event.name {
-            debug!("next");
-
-            super::remove(&mut commands, &mut ui, &overlay);
-
-            if let level::CurrentLevel::Loaded {
-                next_level: Some(next_level),
-                ..
-            } = current_level.as_ref()
-            {
-                output_events.send(level::LoadEvent {
-                    path: format!("levels/{}.json", next_level),
-                });
-            }
-        }
-    }
 }
 
 pub struct LevelCompletePlugin;
 
 impl Plugin for LevelCompletePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(handle_next);
+        app.add_event::<NextLevelEvent>();
     }
 }

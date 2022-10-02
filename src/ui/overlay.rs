@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use super::UI;
 
 #[derive(Default)]
-struct Overlay {
+pub struct Overlay {
     entity: Option<Entity>,
 }
 
@@ -41,7 +41,7 @@ pub fn display(
     });
 }
 
-fn remove(commands: &mut Commands, ui: &mut UI, overlay: &Overlay) {
+pub fn remove(commands: &mut Commands, ui: &mut UI, overlay: &Overlay) {
     if let Some(overlay_entity) = overlay.entity {
         super::update(commands, ui, |commands, entity| {
             commands.entity(entity).remove_children(&[overlay_entity]);
