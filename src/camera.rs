@@ -40,7 +40,7 @@ impl CameraBundle {
     }
 }
 
-pub fn scroll_zoom(
+fn scroll_zoom(
     mut scroll_events: EventReader<MouseWheel>,
     mut query: Query<&mut Transform, With<Zoom>>,
 ) {
@@ -58,5 +58,13 @@ pub fn scroll_zoom(
     for mut transform in query.iter_mut() {
         let translation = transform.translation;
         transform.translation += 0.08 * scroll_amount * -translation;
+    }
+}
+
+pub struct ZoomPlugin;
+
+impl Plugin for ZoomPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_system(scroll_zoom);
     }
 }

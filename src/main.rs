@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_rapier3d::prelude::*;
 use hover_pill::{
+    camera::ZoomPlugin,
     controls::ControlsPlugin,
     fuel::FuelPlugin,
     fuel_ball::FuelBallPlugin,
@@ -35,6 +36,7 @@ fn main() {
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(ui::button::ButtonPlugin)
         .add_plugin(ControlsPlugin)
+        .add_plugin(ZoomPlugin)
         .add_plugin(UiPlugin)
         .add_plugin(LevelPlugin)
         .add_plugin(FuelPlugin)
