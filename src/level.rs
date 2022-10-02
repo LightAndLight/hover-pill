@@ -241,7 +241,7 @@ pub fn load_level(
     });
 }
 
-pub fn reload_level(
+fn hotreload_level(
     mut asset_event: EventReader<AssetEvent<Level>>,
     asset_server: Res<AssetServer>,
     assets: Res<Assets<Level>>,
@@ -344,6 +344,7 @@ impl Plugin for LevelPlugin {
             .add_event::<LoadEvent>()
             .init_resource::<CurrentLevel>()
             .add_system(handle_load_events)
-            .add_system(finish_loading);
+            .add_system(finish_loading)
+            .add_system(hotreload_level);
     }
 }
