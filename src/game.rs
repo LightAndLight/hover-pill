@@ -8,19 +8,25 @@ use crate::{
     world::PlayerHit,
 };
 
-fn reset_player_position(mut transform: &mut Transform) {
-    transform.translation = 2.0 * Vec3::Y;
+fn reset_player_position(
+    current_level: &level::CurrentLevel,
+    query: &mut Query<&mut Transform, With<Controlled>>,
+) {
+    if let level::CurrentLevel::Loaded { player_start, .. } = current_level {
+        for mut transform in query {
+            transform.translation = *player_start;
+        }
+    }
 }
 
 fn reset_when_player_hits_avoid(
     mut player_hit: EventReader<PlayerHit>,
+    current_level: Res<level::CurrentLevel>,
     mut query: Query<&mut Transform, With<Controlled>>,
 ) {
     for event in player_hit.iter() {
         if let PlayerHit::Avoid = event {
-            for mut transform in &mut query {
-                reset_player_position(&mut transform);
-            }
+            reset_player_position(&current_level, &mut query);
         }
     }
 }
@@ -42,13 +48,15 @@ fn handle_goal(
 
 fn restart_level(
     keys: Res<Input<KeyCode>>,
-    mut query: Query<(&mut Fuel, &mut Transform), With<Controlled>>,
+    current_level: Res<level::CurrentLevel>,
+    mut transform_query: Query<&mut Transform, With<Controlled>>,
+    mut fuel_query: Query<&mut Fuel, With<Controlled>>,
     mut fuel_changed: EventWriter<FuelChanged>,
 ) {
     if keys.just_pressed(KeyCode::R) {
-        for (mut fuel, mut transform) in &mut query {
-            reset_player_position(&mut transform);
+        reset_player_position(&current_level, &mut transform_query);
 
+        for mut fuel in &mut fuel_query {
             let amount = 1.0 - fuel.value;
             add_fuel(&mut fuel, amount, &mut fuel_changed);
         }
