@@ -1,3 +1,5 @@
+pub mod wall;
+
 use bevy::{
     asset::{AssetLoader, LoadedAsset},
     prelude::*,
@@ -10,7 +12,7 @@ use crate::{
     fuel_ball::FuelBallBundle,
     player::spawn_player,
     ui::{overlay, UI},
-    world::{Avoid, Goal, WallBundle},
+    world::{Avoid, Goal},
 };
 
 #[derive(Serialize, Deserialize, TypeUuid)]
@@ -145,7 +147,7 @@ pub fn load_level(
                 size,
             } => match wall_type {
                 WallType::Neutral => commands
-                    .spawn_bundle(WallBundle::new(
+                    .spawn_bundle(wall::WallBundle::new(
                         meshes,
                         materials,
                         Transform::identity()
@@ -156,7 +158,7 @@ pub fn load_level(
                     ))
                     .id(),
                 WallType::Avoid => commands
-                    .spawn_bundle(WallBundle::new(
+                    .spawn_bundle(wall::WallBundle::new(
                         meshes,
                         materials,
                         Transform::identity()
@@ -168,7 +170,7 @@ pub fn load_level(
                     .insert(Avoid)
                     .id(),
                 WallType::Goal => commands
-                    .spawn_bundle(WallBundle::new(
+                    .spawn_bundle(wall::WallBundle::new(
                         meshes,
                         materials,
                         Transform::identity()
