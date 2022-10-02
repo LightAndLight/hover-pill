@@ -166,7 +166,7 @@ pub fn load_level(
                         *size,
                         Color::RED,
                     ))
-                    .insert(wall::Avoid)
+                    .insert(wall::WallType::Avoid)
                     .id(),
                 WallType::Goal => commands
                     .spawn_bundle(wall::WallBundle::new(
@@ -178,7 +178,7 @@ pub fn load_level(
                         *size,
                         Color::GREEN,
                     ))
-                    .insert(wall::Goal)
+                    .insert(wall::WallType::Goal)
                     .id(),
             },
             LevelItem::FuelBall { position } => commands

@@ -11,8 +11,7 @@ pub enum PlayerHit {
 fn handle_player_collisions(
     mut collision_events: EventReader<CollisionEvent>,
     player_query: Query<&Controlled>,
-    avoid_query: Query<&wall::Avoid>,
-    goal_query: Query<&wall::Goal>,
+    wall_type_query: Query<&wall::WallType>,
     mut player_hit: EventWriter<PlayerHit>,
 ) {
     for event in collision_events.iter() {
@@ -26,12 +25,17 @@ fn handle_player_collisions(
             };
 
             if let Some((player, target)) = entities {
-                let hit = if avoid_query.contains(target) {
-                    debug!("player {:?} hit avoid {:?}", player, target);
-                    Some(PlayerHit::Avoid)
-                } else if goal_query.contains(target) {
-                    debug!("player {:?} hit goal {:?}", player, target);
-                    Some(PlayerHit::Goal)
+                let hit = if let Ok(wall_type) = wall_type_query.get(target) {
+                    match wall_type {
+                        wall::WallType::Avoid => {
+                            debug!("player {:?} hit avoid {:?}", player, target);
+                            Some(PlayerHit::Avoid)
+                        }
+                        wall::WallType::Goal => {
+                            debug!("player {:?} hit goal {:?}", player, target);
+                            Some(PlayerHit::Goal)
+                        }
+                    }
                 } else {
                     None
                 };

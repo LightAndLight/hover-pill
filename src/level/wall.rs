@@ -40,7 +40,7 @@ impl WallBundle {
 pub struct Wall;
 
 #[derive(Component)]
-pub struct Avoid;
-
-#[derive(Component)]
-pub struct Goal;
+pub enum WallType {
+    Avoid,
+    Goal,
+}
