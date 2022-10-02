@@ -4,6 +4,8 @@ use bevy::prelude::*;
 pub enum ButtonName {
     Next,
     Continue,
+    Play,
+    LevelEditor,
 }
 
 pub struct ButtonPressEvent {

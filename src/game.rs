@@ -105,14 +105,33 @@ fn load_next_level(
     }
 }
 
+pub fn setup() {
+    debug!("game::setup");
+}
+
+pub fn teardown() {
+    debug!("game::teardown");
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GameState {
+    MainMenu,
+    Playing,
+}
+
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(reset_when_player_hits_avoid)
-            .add_system(show_complete_screen_on_goal)
-            .add_system(restart_level)
-            .add_system(next_level)
-            .add_system(load_next_level);
+        app.add_system_set(SystemSet::on_enter(GameState::Playing).with_system(setup))
+            .add_system_set(
+                SystemSet::on_update(GameState::Playing)
+                    .with_system(reset_when_player_hits_avoid)
+                    .with_system(show_complete_screen_on_goal)
+                    .with_system(restart_level)
+                    .with_system(next_level)
+                    .with_system(load_next_level),
+            )
+            .add_system_set(SystemSet::on_exit(GameState::Playing).with_system(teardown));
     }
 }

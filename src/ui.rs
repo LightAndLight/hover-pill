@@ -1,4 +1,5 @@
 pub mod button;
+pub mod main_menu;
 pub mod overlay;
 
 use bevy::prelude::*;
@@ -203,7 +204,6 @@ impl Plugin for UiPlugin {
         app.add_startup_system(setup)
             .add_event::<NextLevelEvent>()
             .add_event::<DisplayCompleteScreenEvent>()
-            .add_plugin(button::ButtonPlugin)
             .add_plugin(overlay::OverlayPlugin)
             .add_system(handle_next_level)
             .add_system(display_complete_screen)

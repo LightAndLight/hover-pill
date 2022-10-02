@@ -8,7 +8,7 @@ use bevy_rapier3d::{prelude::*, render::RapierDebugRenderPlugin};
 use hover_pill::{
     fuel::FuelPlugin,
     fuel_ball::FuelBallPlugin,
-    game::GamePlugin,
+    game::{self, GamePlugin, GameState},
     hover::HoverPlugin,
     level::LevelPlugin,
     player::PlayerPlugin,
@@ -31,6 +31,20 @@ fn setup(asset_server: Res<AssetServer>) {
 fn main() {
     let mut app = App::new();
 
+    app.add_plugins(DefaultPlugins)
+        .add_plugin(ui::button::ButtonPlugin)
+        .add_plugin(GamePlugin);
+
+    app.add_state(GameState::MainMenu)
+        .add_system_set(SystemSet::on_enter(GameState::MainMenu).with_system(ui::main_menu::setup))
+        .add_system_set(
+            SystemSet::on_update(GameState::MainMenu).with_system(ui::main_menu::handle_buttons),
+        )
+        .add_system_set(
+            SystemSet::on_exit(GameState::MainMenu).with_system(ui::main_menu::teardown),
+        );
+
+    /*
     app.insert_resource(WindowDescriptor {
         title: String::from("Hover Pill"),
         canvas: Some(String::from("#app")),
@@ -38,8 +52,6 @@ fn main() {
     })
     .insert_resource(ReportExecutionOrderAmbiguities::default())
     .init_resource::<ui::Overlay>();
-
-    app.add_plugins(DefaultPlugins);
 
     if cfg!(debug_assertions) {
         app.add_plugin(LogDiagnosticsPlugin::default())
@@ -71,6 +83,7 @@ fn main() {
     if !cfg!(target_family = "wasm") {
         app.add_plugin(AtmospherePlugin);
     };
+    */
 
     app.run();
 }
