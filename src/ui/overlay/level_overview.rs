@@ -2,6 +2,12 @@ use bevy::prelude::*;
 
 use crate::ui::{button, UI};
 
+pub struct ContinueEvent;
+
+fn continue_callback(commands: &mut Commands) {
+    commands.add(|world: &mut World| world.send_event(ContinueEvent))
+}
+
 pub fn display(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI, lines: &[String]) {
     super::display(commands, ui, |parent| {
         let style = TextStyle {
@@ -55,29 +61,16 @@ pub fn display(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI,
                     },
                 ));
             })
-            .insert(button::ButtonName::Continue);
+            .insert(button::OnClick {
+                callback: continue_callback,
+            });
     });
-}
-
-fn handle_continue(
-    mut button_press: EventReader<button::ButtonPressEvent>,
-    mut commands: Commands,
-    mut ui: ResMut<UI>,
-    overlay: Res<super::Overlay>,
-) {
-    for event in button_press.iter() {
-        if let button::ButtonName::Continue = event.name {
-            debug!("continue");
-
-            super::remove(&mut commands, &mut ui, &overlay);
-        }
-    }
 }
 
 pub struct LevelOverviewPlugin;
 
 impl Plugin for LevelOverviewPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(handle_continue);
+        app.add_event::<ContinueEvent>();
     }
 }

@@ -7,7 +7,6 @@ pub struct OnClick {
 
 #[derive(Clone, Copy, Component)]
 pub enum ButtonName {
-    Continue,
     Play,
     LevelEditor,
 }

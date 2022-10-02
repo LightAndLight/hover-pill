@@ -19,7 +19,6 @@ pub fn handle_buttons(
             ButtonName::LevelEditor => {
                 output_events.send(MainMenuEvent::LevelEditor);
             }
-            _ => {}
         }
     }
 }

@@ -112,6 +112,21 @@ fn handle_next_level(
     }
 }
 
+fn handle_continue(
+    mut input_events: EventReader<ui::overlay::level_overview::ContinueEvent>,
+    mut commands: Commands,
+    mut ui: ResMut<UI>,
+    overlay: Res<ui::overlay::Overlay>,
+) {
+    use ui::overlay::level_overview::ContinueEvent;
+
+    for ContinueEvent in input_events.iter() {
+        debug!("continue");
+
+        ui::overlay::remove(&mut commands, &mut ui, &overlay);
+    }
+}
+
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
@@ -120,6 +135,7 @@ impl Plugin for GamePlugin {
             .add_system(handle_goal)
             .add_system(restart_level)
             .add_system(handle_main_menu)
-            .add_system(handle_next_level);
+            .add_system(handle_next_level)
+            .add_system(handle_continue);
     }
 }
