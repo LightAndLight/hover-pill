@@ -38,3 +38,9 @@ impl WallBundle {
 
 #[derive(Component)]
 pub struct Wall;
+
+#[derive(Component)]
+pub struct Avoid;
+
+#[derive(Component)]
+pub struct Goal;

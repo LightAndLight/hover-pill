@@ -1,13 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::controls::Controlled;
-
-#[derive(Component)]
-pub struct Avoid;
-
-#[derive(Component)]
-pub struct Goal;
+use crate::{controls::Controlled, level::wall};
 
 pub enum PlayerHit {
     Avoid,
@@ -17,8 +11,8 @@ pub enum PlayerHit {
 fn handle_player_collisions(
     mut collision_events: EventReader<CollisionEvent>,
     player_query: Query<&Controlled>,
-    avoid_query: Query<&Avoid>,
-    goal_query: Query<&Goal>,
+    avoid_query: Query<&wall::Avoid>,
+    goal_query: Query<&wall::Goal>,
     mut player_hit: EventWriter<PlayerHit>,
 ) {
     for event in collision_events.iter() {

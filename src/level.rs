@@ -12,7 +12,6 @@ use crate::{
     fuel_ball::FuelBallBundle,
     player::spawn_player,
     ui::{overlay, UI},
-    world::{Avoid, Goal},
 };
 
 #[derive(Serialize, Deserialize, TypeUuid)]
@@ -167,7 +166,7 @@ pub fn load_level(
                         *size,
                         Color::RED,
                     ))
-                    .insert(Avoid)
+                    .insert(wall::Avoid)
                     .id(),
                 WallType::Goal => commands
                     .spawn_bundle(wall::WallBundle::new(
@@ -179,7 +178,7 @@ pub fn load_level(
                         *size,
                         Color::GREEN,
                     ))
-                    .insert(Goal)
+                    .insert(wall::Goal)
                     .id(),
             },
             LevelItem::FuelBall { position } => commands
