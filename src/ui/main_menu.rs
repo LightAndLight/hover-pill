@@ -1,26 +1,18 @@
 use bevy::prelude::*;
 
-use super::button::{ButtonName, ButtonPressEvent};
+use super::button;
 
 pub enum MainMenuEvent {
     Play,
     LevelEditor,
 }
 
-pub fn handle_buttons(
-    mut input_events: EventReader<ButtonPressEvent>,
-    mut output_events: EventWriter<MainMenuEvent>,
-) {
-    for event in input_events.iter() {
-        match event.name {
-            ButtonName::Play => {
-                output_events.send(MainMenuEvent::Play);
-            }
-            ButtonName::LevelEditor => {
-                output_events.send(MainMenuEvent::LevelEditor);
-            }
-        }
-    }
+fn play_callback(commands: &mut Commands) {
+    commands.add(|world: &mut World| world.send_event(MainMenuEvent::Play));
+}
+
+fn level_editor_callback(commands: &mut Commands) {
+    commands.add(|world: &mut World| world.send_event(MainMenuEvent::LevelEditor));
 }
 
 pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
@@ -82,7 +74,9 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
                         },
                     ));
                 })
-                .insert(ButtonName::Play);
+                .insert(button::OnClick {
+                    callback: play_callback,
+                });
 
             parent
                 .spawn_bundle(ButtonBundle {
@@ -103,7 +97,9 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
                         },
                     ));
                 })
-                .insert(ButtonName::LevelEditor);
+                .insert(button::OnClick {
+                    callback: level_editor_callback,
+                });
         })
         .id()
 }
@@ -112,6 +108,6 @@ pub struct MainMenuPlugin;
 
 impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<MainMenuEvent>().add_system(handle_buttons);
+        app.add_event::<MainMenuEvent>();
     }
 }
