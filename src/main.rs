@@ -10,7 +10,6 @@ use hover_pill::{
     level::LevelPlugin,
     player::PlayerPlugin,
     ui::{self, UiPlugin, UI},
-    world::WorldPlugin,
 };
 
 fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
@@ -38,7 +37,6 @@ fn main() {
         .add_plugin(ControlsPlugin)
         .add_plugin(UiPlugin)
         .add_plugin(LevelPlugin)
-        .add_plugin(WorldPlugin)
         .add_plugin(FuelPlugin)
         .add_plugin(HoverPlugin)
         .add_plugin(FuelBallPlugin)

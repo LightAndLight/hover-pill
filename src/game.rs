@@ -1,11 +1,11 @@
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
 
 use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
-    level,
+    level::{self, wall},
     ui::{self, main_menu::MainMenuEvent, UI},
-    world::PlayerHit,
 };
 
 fn reset_player_position(
@@ -15,6 +15,50 @@ fn reset_player_position(
     if let level::CurrentLevel::Loaded { player_start, .. } = current_level {
         for mut transform in query {
             transform.translation = *player_start;
+        }
+    }
+}
+enum PlayerHit {
+    Avoid,
+    Goal,
+}
+
+fn handle_player_collisions(
+    mut collision_events: EventReader<CollisionEvent>,
+    player_query: Query<&Controlled>,
+    wall_type_query: Query<&wall::WallType>,
+    mut player_hit: EventWriter<PlayerHit>,
+) {
+    for event in collision_events.iter() {
+        if let CollisionEvent::Started(entity1, entity2, _) = event {
+            let entities = if player_query.contains(*entity1) {
+                Some((*entity1, *entity2))
+            } else if player_query.contains(*entity2) {
+                Some((*entity2, *entity1))
+            } else {
+                None
+            };
+
+            if let Some((player, target)) = entities {
+                let hit = if let Ok(wall_type) = wall_type_query.get(target) {
+                    match wall_type {
+                        wall::WallType::Avoid => {
+                            debug!("player {:?} hit avoid {:?}", player, target);
+                            Some(PlayerHit::Avoid)
+                        }
+                        wall::WallType::Goal => {
+                            debug!("player {:?} hit goal {:?}", player, target);
+                            Some(PlayerHit::Goal)
+                        }
+                    }
+                } else {
+                    None
+                };
+
+                if let Some(event) = hit {
+                    player_hit.send(event);
+                }
+            }
         }
     }
 }
@@ -139,11 +183,13 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(reset_when_player_hits_avoid)
+        app.add_event::<PlayerHit>()
+            .add_system(reset_when_player_hits_avoid)
             .add_system(handle_goal)
             .add_system(restart_level)
             .add_system(handle_main_menu)
             .add_system(handle_next_level)
-            .add_system(handle_continue);
+            .add_system(handle_continue)
+            .add_system(handle_player_collisions);
     }
 }
