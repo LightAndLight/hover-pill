@@ -2,9 +2,40 @@ pub mod button;
 pub mod main_menu;
 pub mod overlay;
 
-use bevy::prelude::*;
+use bevy::{ecs::system::EntityCommands, prelude::*};
 
 use crate::fuel::FuelChanged;
+
+#[derive(Default)]
+pub struct UI {
+    root: Option<Entity>,
+}
+
+pub fn clear(commands: &mut Commands, ui: &mut UI) {
+    match ui.root {
+        Some(entity) => commands.entity(entity).despawn_recursive(),
+        None => todo!(),
+    }
+
+    ui.root = None;
+}
+
+pub fn replace(
+    commands: &mut Commands,
+    ui: &mut UI,
+    create_new_ui: impl FnOnce(&mut Commands) -> Entity,
+) {
+    clear(commands, ui);
+
+    ui.root = Some(create_new_ui(commands));
+}
+
+pub fn update(commands: &mut Commands, ui: &mut UI, update_ui: impl FnOnce(EntityCommands)) {
+    match ui.root {
+        Some(entity) => update_ui(commands.entity(entity)),
+        None => {}
+    }
+}
 
 #[derive(Component)]
 pub struct FuelBar;
@@ -175,7 +206,8 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<NextLevelEvent>()
+        app.init_resource::<UI>()
+            .add_event::<NextLevelEvent>()
             .add_event::<DisplayCompleteScreenEvent>();
     }
 }
