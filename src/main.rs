@@ -50,17 +50,6 @@ fn main() {
         app.add_plugin(AtmospherePlugin);
     };
 
-    /*
-    app.add_state(GameState::MainMenu)
-        .add_system_set(SystemSet::on_enter(GameState::MainMenu).with_system(ui::main_menu::setup))
-        .add_system_set(
-            SystemSet::on_update(GameState::MainMenu).with_system(ui::main_menu::handle_buttons),
-        )
-        .add_system_set(
-            SystemSet::on_exit(GameState::MainMenu).with_system(ui::main_menu::teardown),
-        );
-     */
-
     if cfg!(debug_assertions) {
         app.add_plugin(RapierDebugRenderPlugin::default())
             .add_system(display_collision_events);
