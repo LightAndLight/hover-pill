@@ -203,7 +203,7 @@ pub fn load_level(
     );
 
     if let Some(overlay_text) = &level.initial_overlay {
-        overlay::display_level(asset_server, commands, ui, overlay_text);
+        overlay::level_overview::display(asset_server, commands, ui, overlay_text);
     }
 
     debug!("finished loading level");

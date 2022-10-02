@@ -35,7 +35,7 @@ fn handle_goal(
         if let PlayerHit::Goal = event {
             debug!("player hit goal");
 
-            ui::overlay::display_complete(&asset_server, &mut commands, &mut ui);
+            ui::overlay::level_complete::display(&asset_server, &mut commands, &mut ui);
         }
     }
 }
