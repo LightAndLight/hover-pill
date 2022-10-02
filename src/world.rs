@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{controls::Controlled, level};
+use crate::controls::Controlled;
 
 #[derive(Bundle)]
 pub struct WallBundle {
@@ -54,7 +54,7 @@ pub enum PlayerHit {
     Goal,
 }
 
-fn handle_player_collisions(
+pub fn handle_player_collisions(
     mut collision_events: EventReader<CollisionEvent>,
     player_query: Query<&Controlled>,
     avoid_query: Query<&Avoid>,
@@ -90,10 +90,7 @@ fn handle_player_collisions(
     }
 }
 
-pub fn setup(asset_server: Res<AssetServer>, mut commands: Commands) {
-    let next_level_handle = asset_server.load("levels/tutorial_1.json");
-    commands.insert_resource(level::CurrentLevel::Loading(next_level_handle));
-
+fn setup(mut commands: Commands) {
     commands.spawn_bundle(DirectionalLightBundle {
         transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 3.5)),
         directional_light: DirectionalLight {
@@ -118,8 +115,6 @@ pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup)
-            .add_event::<PlayerHit>()
-            .add_system(handle_player_collisions);
+        app.add_event::<PlayerHit>().add_startup_system(setup);
     }
 }

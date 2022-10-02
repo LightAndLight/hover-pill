@@ -1,17 +1,11 @@
-use bevy::{
-    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
-    ecs::schedule::ReportExecutionOrderAmbiguities,
-    prelude::*,
-};
+use bevy::prelude::*;
 use bevy_atmosphere::prelude::AtmospherePlugin;
-use bevy_rapier3d::{prelude::*, render::RapierDebugRenderPlugin};
+use bevy_rapier3d::prelude::*;
 use hover_pill::{
     fuel::FuelPlugin,
-    fuel_ball::FuelBallPlugin,
-    game::{self, GamePlugin, GameState},
+    game::{GamePlugin, GameState},
     hover::HoverPlugin,
     level::LevelPlugin,
-    player::PlayerPlugin,
     ui::{self, UiPlugin},
     world::WorldPlugin,
 };
@@ -32,8 +26,19 @@ fn main() {
     let mut app = App::new();
 
     app.add_plugins(DefaultPlugins)
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(ui::button::ButtonPlugin)
-        .add_plugin(GamePlugin);
+        .add_plugin(UiPlugin)
+        .add_plugin(LevelPlugin)
+        .add_plugin(WorldPlugin)
+        .add_plugin(FuelPlugin)
+        .add_plugin(HoverPlugin)
+        .add_plugin(GamePlugin)
+        .add_startup_system(setup);
+
+    if !cfg!(target_family = "wasm") {
+        app.add_plugin(AtmospherePlugin);
+    };
 
     app.add_state(GameState::MainMenu)
         .add_system_set(SystemSet::on_enter(GameState::MainMenu).with_system(ui::main_menu::setup))
@@ -43,6 +48,11 @@ fn main() {
         .add_system_set(
             SystemSet::on_exit(GameState::MainMenu).with_system(ui::main_menu::teardown),
         );
+
+    if cfg!(debug_assertions) {
+        app.add_plugin(RapierDebugRenderPlugin::default())
+            .add_system(display_collision_events);
+    }
 
     /*
     app.insert_resource(WindowDescriptor {
@@ -56,7 +66,6 @@ fn main() {
     if cfg!(debug_assertions) {
         app.add_plugin(LogDiagnosticsPlugin::default())
             .add_plugin(FrameTimeDiagnosticsPlugin::default())
-            .add_system(display_collision_events)
             .add_plugin(RapierDebugRenderPlugin::default());
 
         /*
@@ -69,20 +78,11 @@ fn main() {
         */
     }
 
-    app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(FuelPlugin)
         .add_plugin(FuelBallPlugin)
-        .add_plugin(HoverPlugin)
-        .add_plugin(UiPlugin)
         .add_plugin(PlayerPlugin)
-        .add_plugin(LevelPlugin)
-        .add_plugin(WorldPlugin)
-        .add_plugin(GamePlugin)
         .add_startup_system(setup);
 
-    if !cfg!(target_family = "wasm") {
-        app.add_plugin(AtmospherePlugin);
-    };
     */
 
     app.run();

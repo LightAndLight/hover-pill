@@ -20,10 +20,6 @@ pub fn update_fuel_bar(
     }
 }
 
-pub struct Overlay {
-    pub entity: Entity,
-}
-
 pub struct NextLevelEvent;
 
 #[derive(Component)]
@@ -31,10 +27,10 @@ struct CompleteScreen;
 
 pub struct DisplayCompleteScreenEvent;
 
-fn display_complete_screen(
+pub fn display_complete_screen(
     mut display_complete_screen: EventReader<DisplayCompleteScreenEvent>,
     asset_server: Res<AssetServer>,
-    overlay: Res<Overlay>,
+    overlay: Res<overlay::Overlay>,
     mut commands: Commands,
     mut visibility_query: Query<&mut Visibility>,
 ) {
@@ -100,11 +96,11 @@ fn display_complete_screen(
     }
 }
 
-fn handle_next_level(
+pub fn handle_next_level(
     mut button_press: EventReader<button::ButtonPressEvent>,
     mut commands: Commands,
     mut next_level: EventWriter<NextLevelEvent>,
-    overlay: Res<Overlay>,
+    overlay: Res<overlay::Overlay>,
     mut visibility_query: Query<&mut Visibility>,
 ) {
     for event in button_press.iter() {
@@ -121,7 +117,7 @@ fn handle_next_level(
     }
 }
 
-pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub fn display_fuel_bar(commands: &mut Commands, asset_server: &AssetServer) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -175,38 +171,11 @@ pub fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         });
 }
 
-impl FromWorld for Overlay {
-    fn from_world(world: &mut World) -> Self {
-        let entity = world
-            .spawn()
-            .insert_bundle(NodeBundle {
-                style: Style {
-                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
-                    ..Default::default()
-                },
-                color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
-                visibility: Visibility { is_visible: false },
-                ..Default::default()
-            })
-            .id();
-
-        Self { entity }
-    }
-}
-
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup)
-            .add_event::<NextLevelEvent>()
-            .add_event::<DisplayCompleteScreenEvent>()
-            .add_plugin(overlay::OverlayPlugin)
-            .add_system(handle_next_level)
-            .add_system(display_complete_screen)
-            .add_system(update_fuel_bar);
+        app.add_event::<NextLevelEvent>()
+            .add_event::<DisplayCompleteScreenEvent>();
     }
 }

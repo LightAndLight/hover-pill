@@ -6,9 +6,10 @@ use bevy::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    fuel::FuelChanged,
     fuel_ball::FuelBallBundle,
     player::spawn_player,
-    ui::{overlay::display_level_overlay, Overlay},
+    ui::{overlay::display_level_overlay, overlay::Overlay},
     world::{Avoid, Goal, WallBundle},
 };
 
@@ -99,6 +100,7 @@ pub fn load_level(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    fuel_changed: &mut EventWriter<FuelChanged>,
     handle: Handle<Level>,
     level: &Level,
 ) {
@@ -191,6 +193,7 @@ pub fn load_level(
         meshes,
         materials,
         Transform::from_translation(level.player_start),
+        fuel_changed,
     );
 
     if let Some(overlay_text) = &level.initial_overlay {
@@ -223,6 +226,7 @@ fn reload_level(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut fuel_changed: EventWriter<FuelChanged>,
     current_level: Res<CurrentLevel>,
 ) {
     for event in asset_event.iter() {
@@ -250,6 +254,7 @@ fn reload_level(
                             &mut commands,
                             &mut meshes,
                             &mut materials,
+                            &mut fuel_changed,
                             current_level_handle.clone(),
                             level,
                         );

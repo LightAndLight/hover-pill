@@ -60,11 +60,3 @@ pub fn scroll_zoom(
         transform.translation += 0.08 * scroll_amount * -translation;
     }
 }
-
-pub struct CameraPlugin;
-
-impl Plugin for CameraPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_system(scroll_zoom);
-    }
-}

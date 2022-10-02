@@ -1,11 +1,17 @@
 use bevy::prelude::*;
 
 use crate::{
-    controls::Controlled,
+    controls::{self, Controlled},
     fuel::{add_fuel, Fuel, FuelChanged},
-    level::{self, load_level, CurrentLevel},
-    ui::{DisplayCompleteScreenEvent, NextLevelEvent, Overlay},
-    world::PlayerHit,
+    fuel_ball, hover,
+    level::{self, CurrentLevel},
+    player,
+    ui::{
+        self,
+        overlay::{self, Overlay},
+        DisplayCompleteScreenEvent, NextLevelEvent,
+    },
+    world::{self, PlayerHit},
 };
 
 fn reset_player_position(mut transform: &mut Transform) {
@@ -88,16 +94,18 @@ fn load_next_level(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut fuel_changed: EventWriter<FuelChanged>,
 ) {
     if let CurrentLevel::Loading(next_level_handle) = current_level.as_ref() {
         if let Some(level) = assets.get(next_level_handle) {
-            load_level(
+            level::load_level(
                 &asset_server,
                 &overlay,
                 &mut visibility_query,
                 &mut commands,
                 &mut meshes,
                 &mut materials,
+                &mut fuel_changed,
                 next_level_handle.clone(),
                 level,
             );
@@ -105,12 +113,19 @@ fn load_next_level(
     }
 }
 
-pub fn setup() {
-    debug!("game::setup");
+fn load_level(asset_server: &AssetServer, path: &str, commands: &mut Commands) {
+    let next_level_handle = asset_server.load(path);
+    commands.insert_resource(level::CurrentLevel::Loading(next_level_handle));
 }
 
-pub fn teardown() {
-    debug!("game::teardown");
+pub fn setup(asset_server: Res<AssetServer>, mut commands: Commands) {
+    commands.init_resource::<Overlay>();
+    ui::display_fuel_bar(&mut commands, &asset_server);
+    load_level(&asset_server, "levels/tutorial_1.json", &mut commands);
+}
+
+pub fn teardown(mut commands: Commands) {
+    commands.remove_resource::<Overlay>();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -130,7 +145,21 @@ impl Plugin for GamePlugin {
                     .with_system(show_complete_screen_on_goal)
                     .with_system(restart_level)
                     .with_system(next_level)
-                    .with_system(load_next_level),
+                    .with_system(load_next_level)
+                    .with_system(overlay::handle_continue)
+                    .with_system(controls::handle_movement)
+                    .with_system(controls::handle_jump)
+                    .with_system(controls::handle_rotate)
+                    .with_system(player::move_controlled)
+                    .with_system(player::rotate_controlled)
+                    .with_system(hover::handle_hover_events)
+                    .with_system(hover::use_fuel_to_hover)
+                    .with_system(world::handle_player_collisions)
+                    .with_system(ui::display_complete_screen)
+                    .with_system(ui::handle_next_level)
+                    .with_system(ui::update_fuel_bar)
+                    .with_system(fuel_ball::refuel)
+                    .with_system(fuel_ball::rotate),
             )
             .add_system_set(SystemSet::on_exit(GameState::Playing).with_system(teardown));
     }

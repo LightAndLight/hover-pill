@@ -2,9 +2,9 @@ use bevy::{input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::prelude::*;
 
 use crate::{
-    camera::{CameraBundle, CameraPlugin},
-    controls::{Controlled, ControlsPlugin, Forward, Speed},
-    fuel::Fuel,
+    camera::CameraBundle,
+    controls::{Controlled, Forward, Speed},
+    fuel::{Fuel, FuelChanged},
     hover::Hovering,
     jump::JumpImpulse,
 };
@@ -14,13 +14,16 @@ pub fn spawn_player(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     transform: Transform,
+    fuel_changed: &mut EventWriter<FuelChanged>,
 ) -> Entity {
     let capsule_radius = 0.5;
     let capsule_depth = 2.0 * capsule_radius;
 
     let initial_jump_impulse = 5. * Vec3::Y;
 
-    commands
+    let fuel = Fuel { value: 1.0 };
+
+    let entity = commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
                 radius: capsule_radius,
@@ -44,12 +47,18 @@ pub fn spawn_player(
         .insert(Forward { value: Vec3::Z })
         .insert(Speed { value: 3.5 })
         .insert(Controlled::default())
-        .insert(Fuel { value: 1.0 })
+        .insert(fuel)
         .insert(Hovering { value: false })
         .with_children(|parent| {
             parent.spawn_bundle(CameraBundle::new(Transform::from_xyz(0.0, 4.0, -5.0)));
         })
-        .id()
+        .id();
+
+    fuel_changed.send(FuelChanged {
+        new_value: fuel.value,
+    });
+
+    entity
 }
 
 pub fn move_controlled(
@@ -108,16 +117,5 @@ pub fn rotate_controlled(
                 }
             }
         }
-    }
-}
-
-pub struct PlayerPlugin;
-
-impl Plugin for PlayerPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugin(ControlsPlugin)
-            .add_plugin(CameraPlugin)
-            .add_system(move_controlled)
-            .add_system(rotate_controlled);
     }
 }

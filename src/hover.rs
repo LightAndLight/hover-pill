@@ -101,8 +101,6 @@ pub struct HoverPlugin;
 
 impl Plugin for HoverPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<HoverEvent>()
-            .add_system(handle_hover_events)
-            .add_system(use_fuel_to_hover);
+        app.add_event::<HoverEvent>();
     }
 }

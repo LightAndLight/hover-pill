@@ -1,6 +1,32 @@
 use bevy::prelude::*;
 
-use super::{button, Overlay};
+use super::button;
+
+pub struct Overlay {
+    pub entity: Entity,
+}
+
+impl FromWorld for Overlay {
+    fn from_world(world: &mut World) -> Self {
+        let entity = world
+            .spawn()
+            .insert_bundle(NodeBundle {
+                style: Style {
+                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                    flex_direction: FlexDirection::Column,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..Default::default()
+                },
+                color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
+                visibility: Visibility { is_visible: false },
+                ..Default::default()
+            })
+            .id();
+
+        Self { entity }
+    }
+}
 
 fn spawn_continue_button(parent: &mut ChildBuilder, asset_server: &AssetServer) {
     parent
@@ -29,13 +55,6 @@ fn spawn_continue_button(parent: &mut ChildBuilder, asset_server: &AssetServer) 
         })
         .insert(button::ButtonName::Continue);
 }
-
-pub type OverlayFn = fn(
-    asset_server: &AssetServer,
-    commands: &mut Commands,
-    overlay: &Overlay,
-    visibility_query: &mut Query<&mut Visibility>,
-);
 
 pub fn display_level_overlay(
     asset_server: &AssetServer,
@@ -80,7 +99,7 @@ pub fn display_level_overlay(
     visibility.is_visible = true;
 }
 
-fn handle_continue(
+pub fn handle_continue(
     mut button_press: EventReader<button::ButtonPressEvent>,
     mut commands: Commands,
     overlay: Res<Overlay>,
@@ -94,13 +113,5 @@ fn handle_continue(
             let mut overlay = commands.entity(overlay.entity);
             overlay.despawn_descendants();
         }
-    }
-}
-
-pub struct OverlayPlugin;
-
-impl Plugin for OverlayPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_system(handle_continue);
     }
 }
