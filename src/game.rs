@@ -23,6 +23,36 @@ enum PlayerHit {
     Goal,
 }
 
+fn check_player_hit(
+    player_query: &Query<&Controlled>,
+    entity1: &Entity,
+    entity2: &Entity,
+    wall_type_query: &Query<&wall::WallType>,
+) -> Option<PlayerHit> {
+    let (player, target) = if player_query.contains(*entity1) {
+        Some((*entity1, *entity2))
+    } else if player_query.contains(*entity2) {
+        Some((*entity2, *entity1))
+    } else {
+        None
+    }?;
+
+    if let Ok(wall_type) = wall_type_query.get(target) {
+        match wall_type {
+            wall::WallType::Avoid => {
+                debug!("player {:?} hit avoid {:?}", player, target);
+                Some(PlayerHit::Avoid)
+            }
+            wall::WallType::Goal => {
+                debug!("player {:?} hit goal {:?}", player, target);
+                Some(PlayerHit::Goal)
+            }
+        }
+    } else {
+        None
+    }
+}
+
 fn handle_player_collisions(
     mut collision_events: EventReader<CollisionEvent>,
     player_query: Query<&Controlled>,
@@ -31,33 +61,10 @@ fn handle_player_collisions(
 ) {
     for event in collision_events.iter() {
         if let CollisionEvent::Started(entity1, entity2, _) = event {
-            let entities = if player_query.contains(*entity1) {
-                Some((*entity1, *entity2))
-            } else if player_query.contains(*entity2) {
-                Some((*entity2, *entity1))
-            } else {
-                None
-            };
+            let event = check_player_hit(&player_query, entity1, entity2, &wall_type_query);
 
-            if let Some((player, target)) = entities {
-                let hit = if let Ok(wall_type) = wall_type_query.get(target) {
-                    match wall_type {
-                        wall::WallType::Avoid => {
-                            debug!("player {:?} hit avoid {:?}", player, target);
-                            Some(PlayerHit::Avoid)
-                        }
-                        wall::WallType::Goal => {
-                            debug!("player {:?} hit goal {:?}", player, target);
-                            Some(PlayerHit::Goal)
-                        }
-                    }
-                } else {
-                    None
-                };
-
-                if let Some(event) = hit {
-                    player_hit.send(event);
-                }
+            if let Some(event) = event {
+                player_hit.send(event);
             }
         }
     }
@@ -75,7 +82,7 @@ fn reset_when_player_hits_avoid(
     }
 }
 
-fn handle_goal(
+fn complete_when_player_hits_goal(
     mut commands: Commands,
     mut player_hit: EventReader<PlayerHit>,
     asset_server: Res<AssetServer>,
@@ -184,12 +191,12 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PlayerHit>()
-            .add_system(reset_when_player_hits_avoid)
-            .add_system(handle_goal)
             .add_system(restart_level)
             .add_system(handle_main_menu)
             .add_system(handle_next_level)
             .add_system(handle_continue)
-            .add_system(handle_player_collisions);
+            .add_system(handle_player_collisions)
+            .add_system(reset_when_player_hits_avoid.after(handle_player_collisions))
+            .add_system(complete_when_player_hits_goal.after(handle_player_collisions));
     }
 }
