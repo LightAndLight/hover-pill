@@ -112,10 +112,32 @@ pub fn load_level(
 ) {
     debug!("started loading level");
 
-    let entities: Vec<Entity> = level
-        .structure
-        .iter()
-        .map(|item| match item {
+    let entities: Vec<Entity> = std::iter::once({
+        commands
+            .spawn_bundle(DirectionalLightBundle {
+                directional_light: DirectionalLight {
+                    illuminance: 10000.0,
+                    shadows_enabled: true,
+                    shadow_projection: OrthographicProjection {
+                        left: -50.0,
+                        right: 50.0,
+                        bottom: -50.0,
+                        top: 50.0,
+                        near: -50.0,
+                        far: 50.0,
+                        ..default()
+                    },
+                    ..default()
+                },
+                transform: Transform::from_rotation(Quat::from_rotation_x(
+                    -std::f32::consts::PI / 3.5,
+                )),
+                ..default()
+            })
+            .id()
+    })
+    .chain(level.structure.iter().map(|item| {
+        match item {
             LevelItem::Wall {
                 wall_type,
                 position,
@@ -191,8 +213,9 @@ pub fn load_level(
                     });
                 })
                 .id(),
-        })
-        .collect();
+        }
+    }))
+    .collect();
 
     let player = spawn_player(
         commands,

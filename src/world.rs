@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
@@ -90,33 +88,11 @@ fn handle_player_collisions(
     }
 }
 
-fn setup(mut commands: Commands) {
-    commands.spawn_bundle(DirectionalLightBundle {
-        transform: Transform::from_rotation(Quat::from_rotation_x(-PI / 3.5)),
-        directional_light: DirectionalLight {
-            illuminance: 10000.0,
-            shadows_enabled: true,
-            shadow_projection: OrthographicProjection {
-                left: -50.0,
-                right: 50.0,
-                bottom: -50.0,
-                top: 50.0,
-                near: -50.0,
-                far: 50.0,
-                ..default()
-            },
-            ..default()
-        },
-        ..default()
-    });
-}
-
 pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<PlayerHit>()
-            .add_startup_system(setup)
             .add_system(handle_player_collisions);
     }
 }
