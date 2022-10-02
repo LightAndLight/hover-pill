@@ -9,18 +9,11 @@ struct Overlay {
     entity: Option<Entity>,
 }
 
-pub fn display_level(
-    asset_server: &AssetServer,
+pub fn display(
     commands: &mut Commands,
     ui: &mut UI,
-    lines: &[String],
+    create_children: impl FnOnce(&mut ChildBuilder),
 ) {
-    let style = TextStyle {
-        font: asset_server.load("fonts/DejaVuSansMono.ttf"),
-        font_size: 40.0,
-        color: Color::WHITE,
-    };
-
     super::update(commands, ui, |commands, entity| {
         debug!("adding overlay to ui");
 
@@ -36,54 +29,7 @@ pub fn display_level(
                 color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
                 ..Default::default()
             })
-            .with_children(|parent| {
-                parent
-                    .spawn_bundle(NodeBundle {
-                        style: Style {
-                            position_type: PositionType::Absolute,
-                            position: UiRect {
-                                top: Val::Px(200.0),
-                                ..Default::default()
-                            },
-                            flex_direction: FlexDirection::ColumnReverse,
-                            align_items: AlignItems::Center,
-                            ..Default::default()
-                        },
-                        color: Color::NONE.into(),
-                        ..Default::default()
-                    })
-                    .with_children(|parent| {
-                        for line in lines {
-                            parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
-                        }
-                    });
-
-                parent
-                    .spawn_bundle(ButtonBundle {
-                        style: Style {
-                            position_type: PositionType::Absolute,
-                            margin: UiRect {
-                                top: Val::Px(30.0),
-                                ..Default::default()
-                            },
-                            padding: UiRect::all(Val::Px(10.0)),
-                            ..Default::default()
-                        },
-                        color: Color::WHITE.into(),
-                        ..Default::default()
-                    })
-                    .with_children(|parent| {
-                        parent.spawn_bundle(TextBundle::from_section(
-                            "continue",
-                            TextStyle {
-                                font: asset_server.load("fonts/DejaVuSansMono.ttf"),
-                                font_size: 30.0,
-                                color: Color::BLACK,
-                            },
-                        ));
-                    })
-                    .insert(button::ButtonName::Continue);
-            })
+            .with_children(create_children)
             .id();
 
         commands.entity(entity).add_child(overlay);
@@ -94,24 +40,100 @@ pub fn display_level(
     });
 }
 
-pub fn display_complete(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI) {
-    let style = TextStyle {
-        font: asset_server.load("fonts/DejaVuSansMono.ttf"),
-        font_size: 40.0,
-        color: Color::WHITE,
-    };
+fn remove(commands: &mut Commands, ui: &mut UI, overlay: &Overlay) {
+    if let Some(overlay_entity) = overlay.entity {
+        super::update(commands, ui, |commands, entity| {
+            commands.entity(entity).remove_children(&[overlay_entity]);
+        });
 
-    super::update(commands, ui, |commands, entity| {
-        let overlay = commands
+        commands.entity(overlay_entity).despawn_recursive();
+    }
+    commands.insert_resource(Overlay { entity: None });
+}
+
+pub fn display_level(
+    asset_server: &AssetServer,
+    commands: &mut Commands,
+    ui: &mut UI,
+    lines: &[String],
+) {
+    display(commands, ui, |parent| {
+        let style = TextStyle {
+            font: asset_server.load("fonts/DejaVuSansMono.ttf"),
+            font_size: 40.0,
+            color: Color::WHITE,
+        };
+
+        parent
             .spawn_bundle(NodeBundle {
                 style: Style {
-                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                    flex_direction: FlexDirection::Column,
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        top: Val::Px(200.0),
+                        ..Default::default()
+                    },
+                    flex_direction: FlexDirection::ColumnReverse,
                     align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
                     ..Default::default()
                 },
-                color: Color::rgba(0.0, 0.0, 0.0, 0.7).into(),
+                color: Color::NONE.into(),
+                ..Default::default()
+            })
+            .with_children(|parent| {
+                for line in lines {
+                    parent.spawn_bundle(TextBundle::from_section(line, style.clone()));
+                }
+            });
+
+        parent
+            .spawn_bundle(ButtonBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    margin: UiRect {
+                        top: Val::Px(30.0),
+                        ..Default::default()
+                    },
+                    padding: UiRect::all(Val::Px(10.0)),
+                    ..Default::default()
+                },
+                color: Color::WHITE.into(),
+                ..Default::default()
+            })
+            .with_children(|parent| {
+                parent.spawn_bundle(TextBundle::from_section(
+                    "continue",
+                    TextStyle {
+                        font: asset_server.load("fonts/DejaVuSansMono.ttf"),
+                        font_size: 30.0,
+                        color: Color::BLACK,
+                    },
+                ));
+            })
+            .insert(button::ButtonName::Continue);
+    });
+}
+
+pub fn display_complete(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI) {
+    display(commands, ui, |parent| {
+        let style = TextStyle {
+            font: asset_server.load("fonts/DejaVuSansMono.ttf"),
+            font_size: 40.0,
+            color: Color::WHITE,
+        };
+
+        parent
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        top: Val::Px(200.0),
+                        ..Default::default()
+                    },
+                    flex_direction: FlexDirection::ColumnReverse,
+                    align_items: AlignItems::Center,
+                    ..Default::default()
+                },
+                color: Color::NONE.into(),
                 ..Default::default()
             })
             .with_children(|parent| {
@@ -123,65 +145,41 @@ pub fn display_complete(asset_server: &AssetServer, commands: &mut Commands, ui:
                                 top: Val::Px(200.0),
                                 ..Default::default()
                             },
-                            flex_direction: FlexDirection::ColumnReverse,
-                            align_items: AlignItems::Center,
                             ..Default::default()
                         },
                         color: Color::NONE.into(),
                         ..Default::default()
                     })
                     .with_children(|parent| {
-                        parent
-                            .spawn_bundle(NodeBundle {
-                                style: Style {
-                                    position_type: PositionType::Absolute,
-                                    position: UiRect {
-                                        top: Val::Px(200.0),
-                                        ..Default::default()
-                                    },
-                                    ..Default::default()
-                                },
-                                color: Color::NONE.into(),
-                                ..Default::default()
-                            })
-                            .with_children(|parent| {
-                                parent.spawn_bundle(TextBundle::from_section("complete!", style));
-                            });
-
-                        parent
-                            .spawn_bundle(ButtonBundle {
-                                style: Style {
-                                    position_type: PositionType::Absolute,
-                                    position: UiRect {
-                                        top: Val::Px(400.0),
-                                        ..Default::default()
-                                    },
-                                    padding: UiRect::all(Val::Px(10.0)),
-                                    ..Default::default()
-                                },
-                                color: Color::WHITE.into(),
-                                ..Default::default()
-                            })
-                            .with_children(|parent| {
-                                parent.spawn_bundle(TextBundle::from_section(
-                                    "next level",
-                                    TextStyle {
-                                        font: asset_server.load("fonts/DejaVuSansMono.ttf"),
-                                        font_size: 30.0,
-                                        color: Color::BLACK,
-                                    },
-                                ));
-                            })
-                            .insert(button::ButtonName::Next);
+                        parent.spawn_bundle(TextBundle::from_section("complete!", style));
                     });
-            })
-            .id();
 
-        commands.entity(entity).add_child(overlay);
-
-        commands.insert_resource(Overlay {
-            entity: Some(overlay),
-        });
+                parent
+                    .spawn_bundle(ButtonBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            position: UiRect {
+                                top: Val::Px(400.0),
+                                ..Default::default()
+                            },
+                            padding: UiRect::all(Val::Px(10.0)),
+                            ..Default::default()
+                        },
+                        color: Color::WHITE.into(),
+                        ..Default::default()
+                    })
+                    .with_children(|parent| {
+                        parent.spawn_bundle(TextBundle::from_section(
+                            "next level",
+                            TextStyle {
+                                font: asset_server.load("fonts/DejaVuSansMono.ttf"),
+                                font_size: 30.0,
+                                color: Color::BLACK,
+                            },
+                        ));
+                    })
+                    .insert(button::ButtonName::Next);
+            });
     });
 }
 
@@ -195,15 +193,7 @@ fn handle_continue(
         if let button::ButtonName::Continue = event.name {
             debug!("continue");
 
-            if let Some(overlay_entity) = overlay.entity {
-                super::update(&mut commands, &mut ui, |commands, entity| {
-                    commands.entity(entity).remove_children(&[overlay_entity]);
-                });
-
-                commands.entity(overlay_entity).despawn_recursive();
-            }
-
-            commands.insert_resource(Overlay { entity: None });
+            remove(&mut commands, &mut ui, &overlay);
         }
     }
 }
@@ -220,15 +210,7 @@ fn handle_next(
         if let button::ButtonName::Next = event.name {
             debug!("next");
 
-            if let Some(overlay_entity) = overlay.entity {
-                super::update(&mut commands, &mut ui, |commands, entity| {
-                    commands.entity(entity).remove_children(&[overlay_entity]);
-                });
-
-                commands.entity(overlay_entity).despawn_recursive();
-            }
-
-            commands.insert_resource(Overlay { entity: None });
+            remove(&mut commands, &mut ui, &overlay);
 
             if let level::CurrentLevel::Loaded {
                 next_level: Some(next_level),
