@@ -54,7 +54,7 @@ pub enum PlayerHit {
     Goal,
 }
 
-pub fn handle_player_collisions(
+fn handle_player_collisions(
     mut collision_events: EventReader<CollisionEvent>,
     player_query: Query<&Controlled>,
     avoid_query: Query<&Avoid>,
@@ -115,6 +115,8 @@ pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<PlayerHit>().add_startup_system(setup);
+        app.add_event::<PlayerHit>()
+            .add_startup_system(setup)
+            .add_system(handle_player_collisions);
     }
 }

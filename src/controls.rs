@@ -42,7 +42,7 @@ pub struct Speed {
     pub value: f32,
 }
 
-pub fn handle_movement(keys: Res<Input<KeyCode>>, mut query: Query<&mut Controlled>) {
+fn handle_movement(keys: Res<Input<KeyCode>>, mut query: Query<&mut Controlled>) {
     for mut controlled in query.iter_mut() {
         if keys.just_pressed(KeyCode::W) {
             controlled.forward = true;
@@ -78,7 +78,7 @@ pub fn handle_movement(keys: Res<Input<KeyCode>>, mut query: Query<&mut Controll
     }
 }
 
-pub fn handle_jump(keys: Res<Input<KeyCode>>, mut hover_event: EventWriter<HoverEvent>) {
+fn handle_jump(keys: Res<Input<KeyCode>>, mut hover_event: EventWriter<HoverEvent>) {
     if keys.just_pressed(KeyCode::Space) {
         hover_event.send(HoverEvent::Start);
     }
@@ -88,7 +88,7 @@ pub fn handle_jump(keys: Res<Input<KeyCode>>, mut hover_event: EventWriter<Hover
     }
 }
 
-pub fn handle_rotate(
+fn handle_rotate(
     mut windows: ResMut<Windows>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut query: Query<&mut Controlled>,

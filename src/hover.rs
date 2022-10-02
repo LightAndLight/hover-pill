@@ -40,7 +40,7 @@ pub fn end_hover(
     external_force.force = Vec3::ZERO;
 }
 
-pub fn handle_hover_events(
+fn handle_hover_events(
     mut events: EventReader<HoverEvent>,
     mut query: Query<(
         &mut Hovering,
@@ -76,7 +76,7 @@ pub fn handle_hover_events(
     }
 }
 
-pub fn use_fuel_to_hover(
+fn use_fuel_to_hover(
     time: Res<Time>,
     mut query: Query<(
         &mut Hovering,
@@ -101,6 +101,8 @@ pub struct HoverPlugin;
 
 impl Plugin for HoverPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<HoverEvent>();
+        app.add_event::<HoverEvent>()
+            .add_system(handle_hover_events)
+            .add_system(use_fuel_to_hover);
     }
 }

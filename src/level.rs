@@ -217,7 +217,7 @@ pub fn load_level(
     });
 }
 
-fn reload_level(
+pub fn reload_level(
     mut asset_event: EventReader<AssetEvent<Level>>,
     asset_server: Res<AssetServer>,
     assets: Res<Assets<Level>>,
@@ -270,7 +270,6 @@ pub struct LevelPlugin;
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset_loader::<LevelAssetLoader>()
-            .add_asset::<Level>()
-            .add_system(reload_level);
+            .add_asset::<Level>();
     }
 }

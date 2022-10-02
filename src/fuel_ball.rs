@@ -48,7 +48,7 @@ impl FuelBallBundle {
     }
 }
 
-pub fn refuel(
+fn refuel(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
     mut fuel_query: Query<&mut Fuel, Without<FuelBall>>,
@@ -75,10 +75,18 @@ pub fn refuel(
     }
 }
 
-pub fn rotate(time: Res<Time>, mut query: Query<&mut Transform, With<FuelBall>>) {
+fn rotate(time: Res<Time>, mut query: Query<&mut Transform, With<FuelBall>>) {
     let radians_per_second = 0.6;
     let delta_seconds = time.delta_seconds();
     for mut transform in &mut query {
         transform.rotate_y(radians_per_second * delta_seconds);
+    }
+}
+
+pub struct FuelBallPlugin;
+
+impl Plugin for FuelBallPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_system(refuel).add_system(rotate);
     }
 }

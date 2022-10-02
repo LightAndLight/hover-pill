@@ -1,17 +1,15 @@
 use bevy::prelude::*;
 
 use crate::{
-    controls::{self, Controlled},
+    controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
-    fuel_ball, hover,
     level::{self, CurrentLevel},
-    player,
     ui::{
         self,
         overlay::{self, Overlay},
         DisplayCompleteScreenEvent, NextLevelEvent,
     },
-    world::{self, PlayerHit},
+    world::PlayerHit,
 };
 
 fn reset_player_position(mut transform: &mut Transform) {
@@ -147,19 +145,10 @@ impl Plugin for GamePlugin {
                     .with_system(next_level)
                     .with_system(load_next_level)
                     .with_system(overlay::handle_continue)
-                    .with_system(controls::handle_movement)
-                    .with_system(controls::handle_jump)
-                    .with_system(controls::handle_rotate)
-                    .with_system(player::move_controlled)
-                    .with_system(player::rotate_controlled)
-                    .with_system(hover::handle_hover_events)
-                    .with_system(hover::use_fuel_to_hover)
-                    .with_system(world::handle_player_collisions)
                     .with_system(ui::display_complete_screen)
                     .with_system(ui::handle_next_level)
                     .with_system(ui::update_fuel_bar)
-                    .with_system(fuel_ball::refuel)
-                    .with_system(fuel_ball::rotate),
+                    .with_system(level::reload_level),
             )
             .add_system_set(SystemSet::on_exit(GameState::Playing).with_system(teardown));
     }

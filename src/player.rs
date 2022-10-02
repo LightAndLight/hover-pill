@@ -61,7 +61,7 @@ pub fn spawn_player(
     entity
 }
 
-pub fn move_controlled(
+fn move_controlled(
     time: Res<Time>,
     mut controlled_query: Query<(&Controlled, &Speed, &Forward, &mut Transform)>,
 ) {
@@ -92,7 +92,7 @@ pub fn move_controlled(
     }
 }
 
-pub fn rotate_controlled(
+fn rotate_controlled(
     mut mouse_motion_events: EventReader<MouseMotion>,
     mut query: Query<(&Controlled, &mut Forward, &mut Transform, &Children)>,
     mut camera_query: Query<&mut Transform, (With<Camera>, Without<Controlled>)>,
@@ -117,5 +117,14 @@ pub fn rotate_controlled(
                 }
             }
         }
+    }
+}
+
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_system(move_controlled)
+            .add_system(rotate_controlled);
     }
 }

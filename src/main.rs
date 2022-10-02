@@ -2,10 +2,13 @@ use bevy::prelude::*;
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_rapier3d::prelude::*;
 use hover_pill::{
+    controls::ControlsPlugin,
     fuel::FuelPlugin,
+    fuel_ball::FuelBallPlugin,
     game::{GamePlugin, GameState},
     hover::HoverPlugin,
     level::LevelPlugin,
+    player::PlayerPlugin,
     ui::{self, UiPlugin},
     world::WorldPlugin,
 };
@@ -28,11 +31,14 @@ fn main() {
     app.add_plugins(DefaultPlugins)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(ui::button::ButtonPlugin)
+        .add_plugin(ControlsPlugin)
         .add_plugin(UiPlugin)
         .add_plugin(LevelPlugin)
         .add_plugin(WorldPlugin)
         .add_plugin(FuelPlugin)
         .add_plugin(HoverPlugin)
+        .add_plugin(FuelBallPlugin)
+        .add_plugin(PlayerPlugin)
         .add_plugin(GamePlugin)
         .add_startup_system(setup);
 
@@ -53,37 +59,6 @@ fn main() {
         app.add_plugin(RapierDebugRenderPlugin::default())
             .add_system(display_collision_events);
     }
-
-    /*
-    app.insert_resource(WindowDescriptor {
-        title: String::from("Hover Pill"),
-        canvas: Some(String::from("#app")),
-        ..Default::default()
-    })
-    .insert_resource(ReportExecutionOrderAmbiguities::default())
-    .init_resource::<ui::Overlay>();
-
-    if cfg!(debug_assertions) {
-        app.add_plugin(LogDiagnosticsPlugin::default())
-            .add_plugin(FrameTimeDiagnosticsPlugin::default())
-            .add_plugin(RapierDebugRenderPlugin::default());
-
-        /*
-        if !cfg!(target_family = "wasm") {
-            app.insert_resource(AssetServerSettings {
-                watch_for_changes: true,
-                ..Default::default()
-            });
-        };
-        */
-    }
-
-        .add_plugin(FuelPlugin)
-        .add_plugin(FuelBallPlugin)
-        .add_plugin(PlayerPlugin)
-        .add_startup_system(setup);
-
-    */
 
     app.run();
 }
