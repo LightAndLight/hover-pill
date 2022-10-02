@@ -55,44 +55,27 @@ fn check_player_hit(
 
 fn handle_player_collisions(
     mut collision_events: EventReader<CollisionEvent>,
-    player_query: Query<&Controlled>,
-    wall_type_query: Query<&wall::WallType>,
-    mut player_hit: EventWriter<PlayerHit>,
+    check: (Query<&Controlled>, Query<&wall::WallType>),
+    mut reset: (
+        Res<level::CurrentLevel>,
+        Query<&mut Transform, With<Controlled>>,
+    ),
+    mut goal: (Res<AssetServer>, Commands, ResMut<UI>),
 ) {
     for event in collision_events.iter() {
         if let CollisionEvent::Started(entity1, entity2, _) = event {
-            let event = check_player_hit(&player_query, entity1, entity2, &wall_type_query);
+            let event = check_player_hit(&check.0, entity1, entity2, &check.1);
 
             if let Some(event) = event {
-                player_hit.send(event);
+                match event {
+                    PlayerHit::Avoid => {
+                        reset_player_position(&reset.0, &mut reset.1);
+                    }
+                    PlayerHit::Goal => {
+                        ui::overlay::level_complete::display(&goal.0, &mut goal.1, &mut goal.2);
+                    }
+                }
             }
-        }
-    }
-}
-
-fn reset_when_player_hits_avoid(
-    mut player_hit: EventReader<PlayerHit>,
-    current_level: Res<level::CurrentLevel>,
-    mut query: Query<&mut Transform, With<Controlled>>,
-) {
-    for event in player_hit.iter() {
-        if let PlayerHit::Avoid = event {
-            reset_player_position(&current_level, &mut query);
-        }
-    }
-}
-
-fn complete_when_player_hits_goal(
-    mut commands: Commands,
-    mut player_hit: EventReader<PlayerHit>,
-    asset_server: Res<AssetServer>,
-    mut ui: ResMut<UI>,
-) {
-    for event in player_hit.iter() {
-        if let PlayerHit::Goal = event {
-            debug!("player hit goal");
-
-            ui::overlay::level_complete::display(&asset_server, &mut commands, &mut ui);
         }
     }
 }
@@ -195,8 +178,6 @@ impl Plugin for GamePlugin {
             .add_system(handle_main_menu)
             .add_system(handle_next_level)
             .add_system(handle_continue)
-            .add_system(handle_player_collisions)
-            .add_system(reset_when_player_hits_avoid.after(handle_player_collisions))
-            .add_system(complete_when_player_hits_goal.after(handle_player_collisions));
+            .add_system(handle_player_collisions);
     }
 }
