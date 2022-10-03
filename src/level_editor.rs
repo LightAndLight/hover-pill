@@ -84,35 +84,23 @@ fn handle_right_click(
 
 fn handle_drag_panning(
     mut mouse_move_events: EventReader<MouseMotion>,
-    mut query: Query<(&mut Transform, &Pan, &Children), Without<Camera>>,
-    camera_query: Query<&Transform, With<Camera>>,
+    mut query: Query<(&mut Transform, &Pan), Without<Camera>>,
 ) {
     for event in mouse_move_events.iter() {
         let delta = event.delta;
         // delta.x points to the right
         // delta.y points to the bottom
 
-        for (mut transform, pan, children) in &mut query {
+        for (mut transform, pan) in &mut query {
             if pan.panning {
-                if let Some(camera_transform) = children.iter().fold(None, |acc, child| match acc {
-                    Some(value) => Some(value),
-                    None => {
-                        if let Ok(value) = camera_query.get(*child) {
-                            Some(value)
-                        } else {
-                            None
-                        }
-                    }
-                }) {
-                    // Assume the camera is always looking in the -Z direction (into the screen)
-                    // See [note: implicit camera direction]
-                    let look_direction = transform.rotation * -Vec3::Z;
+                // Assume the camera is always looking in the -Z direction (into the screen)
+                // See [note: implicit camera direction]
+                let look_direction = transform.rotation * -Vec3::Z;
 
-                    let left = look_direction.cross(-Vec3::Y).normalize();
-                    let up = Vec3::Y;
-                    let scale = 0.05;
-                    transform.translation += scale * (delta.x * left + delta.y * up);
-                }
+                let left = look_direction.cross(-Vec3::Y).normalize();
+                let up = Vec3::Y;
+                let scale = 0.05;
+                transform.translation += scale * (delta.x * left + delta.y * up);
             }
         }
     }
@@ -120,7 +108,7 @@ fn handle_drag_panning(
 
 fn handle_drag_rotating(
     mut mouse_move_events: EventReader<MouseMotion>,
-    mut query: Query<(&mut Transform, &Rotate), Without<Camera>>,
+    mut query: Query<(&mut Transform, &Rotate)>,
 ) {
     for event in mouse_move_events.iter() {
         let delta = event.delta;
