@@ -104,10 +104,12 @@ fn handle_drag_panning(
                         }
                     }
                 }) {
-                    let look_direction = -camera_transform.translation;
+                    // Assume the camera is always looking in the -Z direction (into the screen)
+                    // See [note: implicit camera direction]
+                    let look_direction = transform.rotation * -Vec3::Z;
 
                     let left = look_direction.cross(-Vec3::Y).normalize();
-                    let up = look_direction.cross(left).normalize();
+                    let up = Vec3::Y;
                     let scale = 0.05;
                     transform.translation += scale * (delta.x * left + delta.y * up);
                 }
@@ -128,7 +130,7 @@ fn handle_drag_rotating(
         for (mut transform, rotate) in &mut query {
             if rotate.rotating {
                 let scale = 0.005;
-                transform.rotate_local_x(scale * delta.y);
+                transform.rotate_local_x(scale * -delta.y);
                 transform.rotate_y(scale * -delta.x);
             }
         }
@@ -149,11 +151,21 @@ fn finish_loading(
                 commands.insert_resource(CurrentLevel::Loaded { world });
 
                 commands
-                    .spawn_bundle(TransformBundle::default())
+                    .spawn_bundle(TransformBundle {
+                        local: Transform::identity()
+                            .looking_at(Vec3::new(-5.0, -5.0, -5.0), Vec3::Y),
+                        ..Default::default()
+                    })
                     .with_children(|parent| {
                         parent
                             .spawn_bundle(Camera3dBundle {
-                                transform: Transform::from_xyz(0.0, 0.0, -5.0)
+                                /*
+                                [note: implicit camera direction]
+
+                                We assume the camera is always facing in the direction of -Z
+                                and allow the parent transform to control orientation.
+                                */
+                                transform: Transform::from_xyz(0.0, 0.0, 40.0)
                                     .looking_at(Vec3::ZERO, Vec3::Y),
                                 projection: PerspectiveProjection {
                                     fov: (60.0 / 360.0) * 2.0 * std::f32::consts::PI,
