@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     fuel::FuelChanged,
     fuel_ball::FuelBallBundle,
-    player::spawn_player,
+    player,
     ui::{overlay, UI},
 };
 
@@ -101,19 +101,13 @@ pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
     }
 }
 
-pub fn load_level(
-    asset_server: &AssetServer,
-    ui: &mut UI,
+pub fn create_world(
     commands: &mut Commands,
+    level: &Level,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    fuel_changed: &mut EventWriter<FuelChanged>,
-    handle: Handle<Level>,
-    level: &Level,
-) {
-    debug!("started loading level");
-
-    let entities: Vec<Entity> = std::iter::once({
+) -> Vec<Entity> {
+    std::iter::once({
         commands
             .spawn_bundle(DirectionalLightBundle {
                 directional_light: DirectionalLight {
@@ -216,9 +210,24 @@ pub fn load_level(
                 .id(),
         }
     }))
-    .collect();
+    .collect()
+}
 
-    let player = spawn_player(
+pub fn load_level(
+    asset_server: &AssetServer,
+    ui: &mut UI,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    fuel_changed: &mut EventWriter<FuelChanged>,
+    handle: Handle<Level>,
+    level: &Level,
+) {
+    debug!("started loading level");
+
+    let entities: Vec<Entity> = create_world(commands, level, meshes, materials);
+
+    let player = player::spawn_player(
         commands,
         meshes,
         materials,

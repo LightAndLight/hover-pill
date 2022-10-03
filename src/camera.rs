@@ -55,9 +55,12 @@ fn scroll_zoom(
         })
         .sum();
 
-    for mut transform in query.iter_mut() {
-        let translation = transform.translation;
-        transform.translation += 0.08 * scroll_amount * -translation;
+    if scroll_amount != 0.0 {
+        for mut transform in query.iter_mut() {
+            debug!("zooming camera");
+            let translation = transform.translation;
+            transform.translation += 0.08 * scroll_amount * -translation;
+        }
     }
 }
 
