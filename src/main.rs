@@ -9,6 +9,7 @@ use hover_pill::{
     game::GamePlugin,
     hover::HoverPlugin,
     level::LevelPlugin,
+    level_editor::LevelEditorPlugin,
     player::PlayerPlugin,
     ui::{self, UiPlugin, UI},
 };
@@ -44,6 +45,7 @@ fn main() {
         .add_plugin(FuelBallPlugin)
         .add_plugin(PlayerPlugin)
         .add_plugin(GamePlugin)
+        .add_plugin(LevelEditorPlugin)
         .add_startup_system(setup);
 
     if !cfg!(target_family = "wasm") {

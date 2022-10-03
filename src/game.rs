@@ -5,6 +5,7 @@ use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
     level::{self, wall},
+    level_editor,
     ui::{self, main_menu::MainMenuEvent, UI},
 };
 
@@ -103,7 +104,8 @@ pub fn handle_main_menu(
     mut input_events: EventReader<MainMenuEvent>,
     asset_server: Res<AssetServer>,
     mut ui: ResMut<UI>,
-    mut output_events: EventWriter<level::LoadEvent>,
+    mut load_level: EventWriter<level::LoadEvent>,
+    mut editor_load_level: EventWriter<level_editor::LoadEvent>,
 ) {
     for event in input_events.iter() {
         match event {
@@ -117,12 +119,19 @@ pub fn handle_main_menu(
                     ui::fuel_bar::create(commands, &asset_server)
                 });
 
-                output_events.send(level::LoadEvent {
+                load_level.send(level::LoadEvent {
                     path: "levels/tutorial_1.json".into(),
                 })
             }
             MainMenuEvent::LevelEditor => {
-                debug!("level editor")
+                debug!("level editor");
+
+                ui::clear(&mut commands, &mut ui);
+                ui::remove_camera(&mut commands, &mut ui);
+
+                editor_load_level.send(level_editor::LoadEvent {
+                    path: "levels/tutorial_1.json".into(),
+                })
             }
         }
     }

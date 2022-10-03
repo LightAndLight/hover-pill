@@ -6,5 +6,6 @@ pub mod game;
 pub mod hover;
 pub mod jump;
 pub mod level;
+pub mod level_editor;
 pub mod player;
 pub mod ui;
