@@ -8,13 +8,17 @@ use crate::{
     ui::{self, main_menu::MainMenuEvent, UI},
 };
 
-fn reset_player_position(
+fn reset_player(
     current_level: &level::CurrentLevel,
-    query: &mut Query<&mut Transform, With<Controlled>>,
+    query: &mut Query<(&mut Transform, &mut Fuel), With<Controlled>>,
+    fuel_changed: &mut EventWriter<FuelChanged>,
 ) {
     if let level::CurrentLevel::Loaded { player_start, .. } = current_level {
-        for mut transform in query {
+        for (mut transform, mut fuel) in query {
             transform.translation = *player_start;
+
+            let amount = 1.0 - fuel.value;
+            add_fuel(&mut fuel, amount, fuel_changed);
         }
     }
 }
@@ -58,7 +62,8 @@ fn handle_player_collisions(
     check: (Query<&Controlled>, Query<&wall::WallType>),
     mut reset: (
         Res<level::CurrentLevel>,
-        Query<&mut Transform, With<Controlled>>,
+        Query<(&mut Transform, &mut Fuel), With<Controlled>>,
+        EventWriter<FuelChanged>,
     ),
     mut goal: (Res<AssetServer>, Commands, ResMut<UI>),
 ) {
@@ -69,7 +74,7 @@ fn handle_player_collisions(
             if let Some(event) = event {
                 match event {
                     PlayerHit::Avoid => {
-                        reset_player_position(&reset.0, &mut reset.1);
+                        reset_player(&reset.0, &mut reset.1, &mut reset.2);
                     }
                     PlayerHit::Goal => {
                         ui::overlay::level_complete::display(&goal.0, &mut goal.1, &mut goal.2);
@@ -82,18 +87,14 @@ fn handle_player_collisions(
 
 fn restart_level(
     keys: Res<Input<KeyCode>>,
-    current_level: Res<level::CurrentLevel>,
-    mut transform_query: Query<&mut Transform, With<Controlled>>,
-    mut fuel_query: Query<&mut Fuel, With<Controlled>>,
-    mut fuel_changed: EventWriter<FuelChanged>,
+    mut reset: (
+        Res<level::CurrentLevel>,
+        Query<(&mut Transform, &mut Fuel), With<Controlled>>,
+        EventWriter<FuelChanged>,
+    ),
 ) {
     if keys.just_pressed(KeyCode::R) {
-        reset_player_position(&current_level, &mut transform_query);
-
-        for mut fuel in &mut fuel_query {
-            let amount = 1.0 - fuel.value;
-            add_fuel(&mut fuel, amount, &mut fuel_changed);
-        }
+        reset_player(&reset.0, &mut reset.1, &mut reset.2);
     }
 }
 
