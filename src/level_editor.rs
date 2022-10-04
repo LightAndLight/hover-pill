@@ -6,6 +6,7 @@ use bevy::{
 use crate::{
     camera::Zoom,
     level::{self, Level},
+    ui::{self, UI},
 };
 
 pub struct LoadEvent {
@@ -13,8 +14,8 @@ pub struct LoadEvent {
 }
 
 enum CurrentLevel {
-    Loading { handle: Handle<Level> },
-    Loaded { world: Vec<Entity> },
+    Loading { path: String, handle: Handle<Level> },
+    Loaded { path: String, world: Vec<Entity> },
 }
 
 fn handle_load_event(
@@ -24,7 +25,10 @@ fn handle_load_event(
 ) {
     for event in events.iter() {
         let handle = asset_server.load(&event.path);
-        commands.insert_resource(CurrentLevel::Loading { handle });
+        commands.insert_resource(CurrentLevel::Loading {
+            path: event.path.clone(),
+            handle,
+        });
     }
 }
 
@@ -125,18 +129,65 @@ fn handle_drag_rotating(
     }
 }
 
+fn create_ui(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI, path: &str) {
+    ui::set(commands, ui, |commands| {
+        commands
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        top: Val::Px(10.0),
+                        left: Val::Px(10.0),
+                        ..Default::default()
+                    },
+                    border: UiRect::all(Val::Px(1.0)),
+                    ..Default::default()
+                },
+                color: Color::WHITE.into(),
+                ..Default::default()
+            })
+            .with_children(|parent| {
+                parent
+                    .spawn_bundle(NodeBundle {
+                        color: Color::BLACK.into(),
+                        style: Style {
+                            padding: UiRect::all(Val::Px(5.0)),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
+                    .with_children(|parent| {
+                        parent.spawn_bundle(TextBundle::from_section(
+                            path,
+                            TextStyle {
+                                font: asset_server.load("fonts/DejaVuSansMono.ttf"),
+                                font_size: 30.0,
+                                color: Color::WHITE,
+                            },
+                        ));
+                    });
+            })
+            .id()
+    });
+}
+
 fn finish_loading(
+    asset_server: Res<AssetServer>,
     mut commands: Commands,
+    mut ui: ResMut<UI>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     assets: Res<Assets<Level>>,
     current_level: Option<Res<CurrentLevel>>,
 ) {
     if let Some(current_level) = current_level {
-        if let CurrentLevel::Loading { handle } = current_level.as_ref() {
+        if let CurrentLevel::Loading { path, handle } = current_level.as_ref() {
             if let Some(level) = assets.get(handle) {
                 let world = level::create_world(&mut commands, level, &mut meshes, &mut materials);
-                commands.insert_resource(CurrentLevel::Loaded { world });
+                commands.insert_resource(CurrentLevel::Loaded {
+                    path: path.clone(),
+                    world,
+                });
 
                 commands
                     .spawn_bundle(TransformBundle {
@@ -166,6 +217,8 @@ fn finish_loading(
                     })
                     .insert(Pan { panning: false })
                     .insert(Rotate { rotating: false });
+
+                create_ui(&asset_server, &mut commands, &mut ui, path);
             }
         }
     }
