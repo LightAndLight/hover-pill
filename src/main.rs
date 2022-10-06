@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_atmosphere::prelude::AtmospherePlugin;
+use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
 use hover_pill::{
     camera::ZoomPlugin,
@@ -34,6 +35,7 @@ fn main() {
     let mut app = App::new();
 
     app.add_plugins(DefaultPlugins)
+        .add_plugin(EguiPlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(ui::button::ButtonPlugin)
         .add_plugin(ControlsPlugin)
