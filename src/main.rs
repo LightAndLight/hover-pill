@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{pbr::wireframe::WireframePlugin, prelude::*};
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
@@ -35,6 +35,7 @@ fn main() {
     let mut app = App::new();
 
     app.add_plugins(DefaultPlugins)
+        .add_plugin(WireframePlugin)
         .add_plugin(EguiPlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(ui::button::ButtonPlugin)
@@ -55,7 +56,8 @@ fn main() {
     };
 
     if cfg!(debug_assertions) {
-        app.add_plugin(RapierDebugRenderPlugin::default())
+        app
+            // .add_plugin(RapierDebugRenderPlugin::default())
             .add_system(display_collision_events);
     }
 
