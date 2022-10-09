@@ -107,11 +107,17 @@ fn handle_left_click(
                                     let ray =
                                         screen_point_to_world(camera, transform, cursor_position);
 
-                                    *moving = closest_intersection(rapier_context.as_ref(), ray)
-                                        .map(|(entity, intersection)| Moving {
+                                    *moving = closest_intersection(
+                                        rapier_context.as_ref(),
+                                        transform.translation(),
+                                        ray,
+                                    )
+                                    .map(
+                                        |(entity, intersection)| Moving {
                                             intersection_point: intersection.point,
                                             entity,
-                                        });
+                                        },
+                                    );
                                 }
                             }
                         }
@@ -239,6 +245,7 @@ fn screen_point_to_world(
 
 fn closest_intersection(
     rapier_context: &RapierContext,
+    source: Vec3,
     ray: Ray,
 ) -> Option<(Entity, RayIntersection)> {
     let mut closest: Option<(Entity, RayIntersection)> = None;
@@ -251,7 +258,9 @@ fn closest_intersection(
         QueryFilter::new(),
         |entity, intersection| match closest.as_mut() {
             Some((closest_entity, closest_intersection)) => {
-                if intersection.point.z > closest_intersection.point.z {
+                if (intersection.point - source).length()
+                    < (closest_intersection.point - source).length()
+                {
                     *closest_entity = entity;
                     *closest_intersection = intersection;
                 }
@@ -289,7 +298,7 @@ fn handle_object_hover(
 
                 let ray = screen_point_to_world(camera, transform, cursor_position);
 
-                match closest_intersection(rapier_context.as_ref(), ray) {
+                match closest_intersection(rapier_context.as_ref(), transform.translation(), ray) {
                     Some((entity, _position)) => {
                         debug!("hovered {:?}", entity);
                         if *hovered != Some(entity) {
