@@ -26,7 +26,12 @@ pub enum LevelEditor {
 
 pub enum Mode {
     Camera { panning: bool },
-    Object { moving: Option<(Vec2, Entity)> },
+    Object { moving: Option<Moving> },
+}
+
+pub struct Moving {
+    intersection_point: Vec3,
+    entity: Entity,
 }
 
 pub struct LoadEvent {
@@ -94,7 +99,10 @@ fn handle_left_click(
                                         screen_point_to_world(camera, transform, cursor_position);
 
                                     *moving = closest_intersection(rapier_context.as_ref(), ray)
-                                        .map(|(entity, _)| (cursor_position, entity));
+                                        .map(|(entity, intersection)| Moving {
+                                            intersection_point: intersection.point,
+                                            entity,
+                                        });
                                 }
                             }
                         }
@@ -146,9 +154,16 @@ fn handle_right_click(
     }
 }
 
+#[derive(Debug)]
 struct Ray {
     origin: Vec3,
     direction: Vec3,
+}
+
+impl Ray {
+    fn at(&self, t: f32) -> Vec3 {
+        self.origin + t * self.direction
+    }
 }
 
 // TODO: use viewport_to_world when 0.9 is released.
@@ -191,7 +206,7 @@ fn screen_point_to_world(
 
     Ray {
         origin: world_near,
-        direction: world_far - world_near,
+        direction: (world_far - world_near).normalize(),
     }
 }
 
@@ -272,6 +287,7 @@ fn handle_object_hover(
 
 fn handle_drag(
     mut mouse_move_events: EventReader<MouseMotion>,
+    mut cursor_moved_events: EventReader<CursorMoved>,
     level_editor: Option<ResMut<LevelEditor>>,
     mut query: Query<&mut Transform, (With<Pan>, Without<Camera>)>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
@@ -301,62 +317,156 @@ fn handle_drag(
                     }
                 }
                 Mode::Object { moving } => {
-                    if let Some((cursor_position, entity)) = moving {
-                        if let Ok(mut transform) = transform_query.get_mut(*entity) {
+                    if let Some(moving) = moving {
+                        if let Ok(mut transform) = transform_query.get_mut(moving.entity) {
                             let (camera, camera_global_transform) =
                                 camera_query.iter().next().unwrap();
 
-                            for event in mouse_move_events.iter() {
-                                let cursor_start = *cursor_position;
-                                let cursor_end = cursor_start
-                                    + Vec2 {
-                                        x: event.delta.x,
-                                        y: -event.delta.y,
-                                    };
-                                *cursor_position = cursor_start + event.delta;
+                            if let Some(cursor_moved) = cursor_moved_events.iter().last() {
+                                let cursor_position = cursor_moved.position;
 
-                                // TODO: replace with `world_to_ndc` when 0.9 is released
-                                let ndc_start = {
-                                    let Vec2 {
-                                        x: logical_width,
-                                        y: logical_height,
-                                    } = camera.logical_viewport_size().unwrap();
+                                let center_ray = {
+                                    let screen_position_ndc = Vec2::ZERO;
 
-                                    let screen_position_ndc = Vec2 {
-                                        x: 2.0 * cursor_start.x / logical_width - 1.0,
-                                        y: 2.0 * cursor_start.y / logical_height - 1.0,
-                                    };
+                                    let ndc_near = screen_position_ndc.extend(1.0);
+                                    let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
 
-                                    screen_position_ndc.extend(1.0)
-                                };
-
-                                let ndc_end = {
-                                    let Vec2 {
-                                        x: logical_width,
-                                        y: logical_height,
-                                    } = camera.logical_viewport_size().unwrap();
-
-                                    let screen_position_ndc = Vec2 {
-                                        x: 2.0 * cursor_end.x / logical_width - 1.0,
-                                        y: 2.0 * cursor_end.y / logical_height - 1.0,
-                                    };
-
-                                    screen_position_ndc.extend(1.0)
-                                };
-
-                                let object_ndc_start = camera
-                                    .world_to_ndc(camera_global_transform, transform.translation)
-                                    .unwrap();
-                                let object_ndc_end = object_ndc_start + (ndc_end - ndc_start);
-
-                                let object_world_end = {
                                     let ndc_to_world = camera_global_transform.compute_matrix()
                                         * camera.projection_matrix().inverse();
 
-                                    ndc_to_world.project_point3(object_ndc_end)
+                                    let world_near = ndc_to_world.project_point3(ndc_near);
+                                    let world_far = ndc_to_world.project_point3(ndc_far);
+
+                                    Ray {
+                                        origin: world_near,
+                                        direction: (world_far - world_near).normalize(),
+                                    }
+                                };
+                                let cursor_ray = screen_point_to_world(
+                                    camera,
+                                    camera_global_transform,
+                                    cursor_position,
+                                );
+                                debug!("cursor ray: {:?}", cursor_ray);
+
+                                /*
+                                A plane is defined of the set of points `(x, y, z)` that satisfy the equation
+                                `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0` where `n` is a vector perpendicular to the
+                                plane and `(x_0, y_0, z_0)` is a predetermined point that lies on the plane.
+
+                                `center_ray`'s direction is perpendicular to the near/far planes, and the predetermined point
+                                is the point of intersection when the user started moving. This gives us a "movement plane".
+
+                                The target object's destination is the point where `cursor_ray` intersects the movement plane.
+
+                                We need to find some `t` and `(x, y, z)` such that `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0`
+                                and `cursor_ray.origin + t * cursor_ray.direction = (x, y, z)`.
+
+                                The ray equation expands to:
+
+                                ```
+                                cursor_ray.origin.x + t * cursor_ray.direction.x = x
+                                cursor_ray.origin.y + t * cursor_ray.direction.y = y
+                                cursor_ray.origin.z + t * cursor_ray.direction.z = z
+                                ```
+
+                                and when substituted in to the plane equation:
+
+                                ```
+                                n_x((cursor_ray.origin.x + t * cursor_ray.direction.x) - x_0)
+                                + n_y((cursor_ray.origin.y + t * cursor_ray.direction.y) - y_0)
+                                + n_z((cursor_ray.origin.z + t * cursor_ray.direction.z) - z_0)
+                                = 0
+
+                                n_x * cursor_ray.origin.x + n_x * t * cursor_ray.direction.x - n_x * x_0
+                                + n_y * cursor_ray.origin.y + n_y * t * cursor_ray.direction.y - n_y * y_0
+                                + n_z * cursor_ray.origin.z + n_z * t * cursor_ray.direction.z - n_z * z_0
+                                = 0
+
+                                n_x * t * cursor_ray.direction.x
+                                + n_y * t * cursor_ray.direction.y
+                                + n_z * t * cursor_ray.direction.z
+                                =
+                                  -n_x * cursor_ray.origin.x
+                                  + n_x * x_0
+                                  - n_y * cursor_ray.origin.y
+                                  + n_y * y_0
+                                  - n_z * cursor_ray.origin.z
+                                  + n_z * z_0
+
+                                t * (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+                                =
+                                  -n_x * cursor_ray.origin.x
+                                  + n_x * x_0
+                                  - n_y * cursor_ray.origin.y
+                                  + n_y * y_0
+                                  - n_z * cursor_ray.origin.z
+                                  + n_z * z_0
+
+                                t = (
+                                  -n_x * cursor_ray.origin.x
+                                  + n_x * x_0
+                                  - n_y * cursor_ray.origin.y
+                                  + n_y * y_0
+                                  - n_z * cursor_ray.origin.z
+                                  + n_z * z_0
+                                ) /
+                                  (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+
+                                t = (
+                                  n_x * (-cursor_ray.origin.x + x_0)
+                                  + n_y * (-cursor_ray.origin.y + y_0)
+                                  + n_z * (-cursor_ray.origin.z + z_0)
+                                ) /
+                                  (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+
+                                t = (
+                                  n_x * (-cursor_ray.origin.x + x_0)
+                                  + n_y * (-cursor_ray.origin.y + y_0)
+                                  + n_z * (-cursor_ray.origin.z + z_0)
+                                ) /
+                                  n.dot(cursor_ray.direction)
+
+                                t =
+                                  n.dot((-cursor_ray.origin.x + x_0, -cursor_ray.origin.y + y_0, -cursor_ray.origin.z + z_0))
+                                  / n.dot(cursor_ray.direction)
+
+                                t = n.dot(-cursor_ray.origin + (x_0, y_0, z_0)) / n.dot(cursor_ray.direction)
+
+                                t = n.dot((x_0, y_0, z_0) - cursor_ray.origin) / n.dot(cursor_ray.direction)
+
+                                `t` is undefined when `n.dot(cursor_ray.direction) = 0` because in that case
+                                `cursor_ray.direction` lies parallel to the plane (perpendicular to `n`). If `cursor_ray.origin`
+                                lies on the plan then `t` has infinite solutions (the ray lies in the plain), otherwise
+                                `t` has no solutions.
+                                ```
+                                */
+
+                                let end_t = {
+                                    let t_denominator =
+                                        center_ray.direction.dot(cursor_ray.direction);
+                                    if t_denominator != 0.0 {
+                                        let t = center_ray
+                                            .direction
+                                            .dot(moving.intersection_point - cursor_ray.origin)
+                                            / t_denominator;
+
+                                        if t >= 0.0 {
+                                            Some(t)
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
                                 };
 
-                                transform.translation = object_world_end;
+                                if let Some(end_t) = end_t {
+                                    let translation =
+                                        cursor_ray.at(end_t) - moving.intersection_point;
+                                    moving.intersection_point += translation;
+                                    transform.translation += translation;
+                                }
                             }
                         }
                     }
