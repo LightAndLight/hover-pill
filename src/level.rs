@@ -2,6 +2,7 @@ pub mod wall;
 
 use bevy::{
     asset::{AssetLoader, LoadedAsset},
+    ecs::system::EntityCommands,
     prelude::*,
     reflect::TypeUuid,
 };
@@ -139,41 +140,16 @@ pub fn create_world(
                 rotation,
                 size,
             } => match wall_type {
-                WallType::Neutral => commands
-                    .spawn_bundle(wall::WallBundle::new(
-                        meshes,
-                        materials,
-                        Transform::identity()
-                            .with_translation(*position)
-                            .with_rotation(*rotation),
-                        *size,
-                        Color::WHITE,
-                    ))
-                    .id(),
-                WallType::Avoid => commands
-                    .spawn_bundle(wall::WallBundle::new(
-                        meshes,
-                        materials,
-                        Transform::identity()
-                            .with_translation(*position)
-                            .with_rotation(*rotation),
-                        *size,
-                        Color::RED,
-                    ))
-                    .insert(wall::WallType::Avoid)
-                    .id(),
-                WallType::Goal => commands
-                    .spawn_bundle(wall::WallBundle::new(
-                        meshes,
-                        materials,
-                        Transform::identity()
-                            .with_translation(*position)
-                            .with_rotation(*rotation),
-                        *size,
-                        Color::GREEN,
-                    ))
-                    .insert(wall::WallType::Goal)
-                    .id(),
+                WallType::Neutral => {
+                    spawn_wall_neutral(commands, meshes, materials, *position, *rotation, *size)
+                        .id()
+                }
+                WallType::Avoid => {
+                    spawn_wall_avoid(commands, meshes, materials, *position, *rotation, *size).id()
+                }
+                WallType::Goal => {
+                    spawn_wall_goal(commands, meshes, materials, *position, *rotation, *size).id()
+                }
             },
             LevelItem::FuelBall { position } => commands
                 .spawn_bundle(FuelBallBundle::new(meshes, materials, *position))
@@ -211,6 +187,71 @@ pub fn create_world(
         }
     }))
     .collect()
+}
+
+pub fn spawn_wall_goal<'w, 's, 'a>(
+    commands: &'a mut Commands<'w, 's>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+    rotation: Quat,
+    size: Vec2,
+) -> EntityCommands<'w, 's, 'a> {
+    let mut entity_commands = commands.spawn_bundle(wall::WallBundle::new(
+        meshes,
+        materials,
+        Transform::identity()
+            .with_translation(position)
+            .with_rotation(rotation),
+        size,
+        Color::GREEN,
+    ));
+
+    entity_commands.insert(wall::WallType::Goal);
+
+    entity_commands
+}
+
+pub fn spawn_wall_avoid<'w, 's, 'a>(
+    commands: &'a mut Commands<'w, 's>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+    rotation: Quat,
+    size: Vec2,
+) -> EntityCommands<'w, 's, 'a> {
+    let mut entity_commands = commands.spawn_bundle(wall::WallBundle::new(
+        meshes,
+        materials,
+        Transform::identity()
+            .with_translation(position)
+            .with_rotation(rotation),
+        size,
+        Color::RED,
+    ));
+
+    entity_commands.insert(wall::WallType::Avoid);
+
+    entity_commands
+}
+
+pub fn spawn_wall_neutral<'w, 's, 'a>(
+    commands: &'a mut Commands<'w, 's>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+    rotation: Quat,
+    size: Vec2,
+) -> EntityCommands<'w, 's, 'a> {
+    commands.spawn_bundle(wall::WallBundle::new(
+        meshes,
+        materials,
+        Transform::identity()
+            .with_translation(position)
+            .with_rotation(rotation),
+        size,
+        Color::WHITE,
+    ))
 }
 
 pub fn load_level(

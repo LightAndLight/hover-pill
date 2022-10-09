@@ -20,6 +20,7 @@ pub enum LevelEditor {
         path: String,
         entities: Vec<Entity>,
         mode: Mode,
+        spawn_mode: SpawnMode,
         hovered: Option<Entity>,
     },
 }
@@ -27,6 +28,13 @@ pub enum LevelEditor {
 pub enum Mode {
     Camera { panning: bool },
     Object { moving: Option<Moving> },
+}
+
+#[derive(PartialEq, Eq)]
+pub enum SpawnMode {
+    Avoid,
+    Neutral,
+    Goal,
 }
 
 pub struct Moving {
@@ -164,6 +172,24 @@ impl Ray {
     fn at(&self, t: f32) -> Vec3 {
         self.origin + t * self.direction
     }
+
+    fn intersect_plane(&self, plane: Plane) -> Option<Vec3> {
+        let t_denominator = plane.normal.dot(self.direction);
+
+        let t = if t_denominator != 0.0 {
+            let t = plane.normal.dot(plane.point - self.origin) / t_denominator;
+
+            if t >= 0.0 {
+                Some(t)
+            } else {
+                None
+            }
+        } else {
+            None
+        }?;
+
+        Some(self.origin + t * self.direction)
+    }
 }
 
 // TODO: use viewport_to_world when 0.9 is released.
@@ -283,6 +309,11 @@ fn handle_object_hover(
             }
         }
     }
+}
+
+struct Plane {
+    point: Vec3,
+    normal: Vec3,
 }
 
 fn handle_drag(
@@ -495,13 +526,90 @@ fn handle_drag_rotating(
     }
 }
 
+fn handle_spawn(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    keycodes: Res<Input<KeyCode>>,
+    level_editor: Option<ResMut<LevelEditor>>,
+    windows: Res<Windows>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    pan_query: Query<&Transform, With<Pan>>,
+) {
+    if let Some(mut level_editor) = level_editor {
+        if let LevelEditor::Loaded {
+            spawn_mode,
+            entities,
+            ..
+        } = level_editor.as_mut()
+        {
+            if keycodes.just_pressed(KeyCode::Space) {
+                let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
+                let pan_transform = pan_query.iter().next().unwrap();
+
+                let cursor_position = windows.get_primary().unwrap().cursor_position().unwrap();
+
+                let cursor_ray =
+                    screen_point_to_world(camera, camera_global_transform, cursor_position);
+
+                let position = cursor_ray
+                    .intersect_plane(Plane {
+                        normal: pan_transform.rotation * -Vec3::Z,
+                        point: pan_transform.translation,
+                    })
+                    .unwrap();
+                let rotation = Quat::default();
+                let size = Vec2::new(5.0, 5.0);
+
+                let spawned_entity = match spawn_mode {
+                    SpawnMode::Avoid => level::spawn_wall_avoid(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        position,
+                        rotation,
+                        size,
+                    )
+                    .id(),
+                    SpawnMode::Neutral => level::spawn_wall_neutral(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        position,
+                        rotation,
+                        size,
+                    )
+                    .id(),
+                    SpawnMode::Goal => level::spawn_wall_goal(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        position,
+                        rotation,
+                        size,
+                    )
+                    .id(),
+                };
+
+                entities.push(spawned_entity);
+            }
+        }
+    }
+}
+
 fn create_ui(
     level_editor: Option<ResMut<LevelEditor>>,
     mut egui_context: ResMut<EguiContext>,
     mut load_event: EventWriter<LoadEvent>,
 ) {
     if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded { path, mode, .. } = level_editor.as_mut() {
+        if let LevelEditor::Loaded {
+            path,
+            mode,
+            spawn_mode,
+            ..
+        } = level_editor.as_mut()
+        {
             egui::Window::new("Level Editor")
                 .fixed_pos((10.0, 10.0))
                 .resizable(false)
@@ -534,6 +642,14 @@ fn create_ui(
                         {
                             *mode = Mode::Object { moving: None }
                         };
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("spawn");
+
+                        let _ = ui.radio_value(spawn_mode, SpawnMode::Avoid, "avoid");
+                        let _ = ui.radio_value(spawn_mode, SpawnMode::Neutral, "neutral");
+                        let _ = ui.radio_value(spawn_mode, SpawnMode::Goal, "goal");
                     });
                 });
         }
@@ -589,6 +705,7 @@ fn finish_loading(
                     path: path.clone(),
                     entities,
                     mode: Mode::Camera { panning: false },
+                    spawn_mode: SpawnMode::Neutral,
                     hovered: None,
                 });
             }
@@ -608,6 +725,7 @@ impl Plugin for LevelEditorPlugin {
             .add_system(handle_object_hover)
             .add_system(handle_drag)
             .add_system(handle_drag_rotating)
+            .add_system(handle_spawn)
             .add_system(create_ui);
     }
 }
