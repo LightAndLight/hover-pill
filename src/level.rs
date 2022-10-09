@@ -15,7 +15,7 @@ use crate::{
     ui::{overlay, UI},
 };
 
-#[derive(Serialize, Deserialize, TypeUuid)]
+#[derive(Serialize, Deserialize, TypeUuid, Clone)]
 #[uuid = "a79e94e4-1d11-4581-82f8-fb82cbc67f43"]
 pub struct Level {
     pub next_level: Option<String>,
@@ -45,14 +45,14 @@ impl AssetLoader for LevelAssetLoader {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum WallType {
     Neutral,
     Avoid,
     Goal,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum LevelItem {
     Wall {
         wall_type: WallType,

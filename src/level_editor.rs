@@ -19,6 +19,7 @@ pub enum LevelEditor {
     },
     Loaded {
         path: String,
+        level: Level,
         entities: Vec<Entity>,
         player: Entity,
         mode: Mode,
@@ -550,6 +551,7 @@ fn handle_spawn(
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
             spawn_mode,
+            level,
             entities,
             ..
         } = level_editor.as_mut()
@@ -571,6 +573,17 @@ fn handle_spawn(
                     .unwrap();
                 let rotation = Quat::default();
                 let size = Vec2::new(5.0, 5.0);
+
+                level.structure.push(level::LevelItem::Wall {
+                    wall_type: match spawn_mode {
+                        SpawnMode::Avoid => level::WallType::Avoid,
+                        SpawnMode::Neutral => level::WallType::Neutral,
+                        SpawnMode::Goal => level::WallType::Goal,
+                    },
+                    position,
+                    rotation,
+                    size,
+                });
 
                 let spawned_entity = match spawn_mode {
                     SpawnMode::Avoid => level::spawn_wall_avoid(
@@ -662,7 +675,31 @@ fn create_ui(
                         let _ = ui.radio_value(spawn_mode, SpawnMode::Neutral, "neutral");
                         let _ = ui.radio_value(spawn_mode, SpawnMode::Goal, "goal");
                     });
+
+                    ui.add_space(10.0);
+
+                    ui.vertical_centered(|ui| {
+                        if ui.button("test").clicked() {
+                            debug!("test button clicked")
+                        }
+                    });
                 });
+        }
+    }
+}
+
+#[derive(Component)]
+struct Player;
+
+fn move_player(
+    level_editor: Option<ResMut<LevelEditor>>,
+    query: Query<&Transform, Changed<Transform>>,
+) {
+    if let Some(mut level_editor) = level_editor {
+        if let LevelEditor::Loaded { player, level, .. } = level_editor.as_mut() {
+            if let Ok(transform) = query.get(*player) {
+                level.player_start = transform.translation;
+            }
         }
     }
 }
@@ -731,6 +768,7 @@ fn finish_loading(
 
                 commands.insert_resource(LevelEditor::Loaded {
                     path: path.clone(),
+                    level: level.clone(),
                     entities,
                     player,
                     mode: Mode::Camera { panning: false },
@@ -755,6 +793,7 @@ impl Plugin for LevelEditorPlugin {
             .add_system(handle_drag)
             .add_system(handle_drag_rotating)
             .add_system(handle_spawn)
+            .add_system(move_player)
             .add_system(create_ui);
     }
 }
