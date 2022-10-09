@@ -26,6 +26,11 @@ pub enum LevelEditor {
         spawn_mode: SpawnMode,
         hovered: Option<Entity>,
     },
+    Testing {
+        path: String,
+        level: Level,
+        entities: Vec<Entity>,
+    },
 }
 
 pub enum Mode {
@@ -621,23 +626,28 @@ fn handle_spawn(
     }
 }
 
+enum TestEvent {
+    Start,
+    Stop,
+}
+
 fn create_ui(
     level_editor: Option<ResMut<LevelEditor>>,
     mut egui_context: ResMut<EguiContext>,
     mut load_event: EventWriter<LoadEvent>,
+    mut test_event: EventWriter<TestEvent>,
 ) {
     if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded {
-            path,
-            mode,
-            spawn_mode,
-            ..
-        } = level_editor.as_mut()
-        {
-            egui::Window::new("Level Editor")
-                .fixed_pos((10.0, 10.0))
-                .resizable(false)
-                .show(egui_context.ctx_mut(), |ui| {
+        egui::Window::new("Level Editor")
+            .fixed_pos((10.0, 10.0))
+            .resizable(false)
+            .show(egui_context.ctx_mut(), |ui| match level_editor.as_mut() {
+                LevelEditor::Loaded {
+                    path,
+                    mode,
+                    spawn_mode,
+                    ..
+                } => {
                     ui.horizontal(|ui| {
                         ui.label("level");
 
@@ -680,10 +690,103 @@ fn create_ui(
 
                     ui.vertical_centered(|ui| {
                         if ui.button("test").clicked() {
-                            debug!("test button clicked")
+                            test_event.send(TestEvent::Start);
                         }
                     });
-                });
+                }
+                LevelEditor::Testing { .. } => {
+                    ui.vertical_centered(|ui| {
+                        if ui.button("stop testing").clicked() {
+                            test_event.send(TestEvent::Stop);
+                        }
+                    });
+                }
+                _ => {}
+            });
+    }
+}
+
+fn handle_test_event(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut test_event: EventReader<TestEvent>,
+    level_editor: Option<ResMut<LevelEditor>>,
+) {
+    if let Some(test_event) = test_event.iter().last() {
+        if let Some(mut level_editor) = level_editor {
+            match test_event {
+                TestEvent::Start => {
+                    if let LevelEditor::Loaded {
+                        path,
+                        level,
+                        player,
+                        entities,
+                        ..
+                    } = level_editor.as_mut()
+                    {
+                        let path = std::mem::take(path);
+                        let level = std::mem::take(level);
+
+                        commands.entity(*player).despawn_recursive();
+
+                        for entity in entities {
+                            commands.entity(*entity).despawn_recursive();
+                        }
+
+                        let mut entities =
+                            level::create_world(&mut commands, &level, &mut meshes, &mut materials);
+
+                        entities.push(player::spawn_player(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            Transform::from_translation(level.player_start),
+                            None,
+                        ));
+
+                        *level_editor = LevelEditor::Testing {
+                            path,
+                            level,
+                            entities,
+                        }
+                    }
+                }
+                TestEvent::Stop => {
+                    if let LevelEditor::Testing {
+                        path,
+                        level,
+                        entities,
+                    } = level_editor.as_mut()
+                    {
+                        let path = std::mem::take(path);
+                        let level = std::mem::take(level);
+                        let entities = std::mem::take(entities);
+
+                        for entity in entities.into_iter() {
+                            commands.entity(entity).despawn_recursive();
+                        }
+
+                        let mut entities =
+                            level::create_world(&mut commands, &level, &mut meshes, &mut materials);
+
+                        entities.push(spawn_camera(&mut commands));
+
+                        let player =
+                            spawn_player(&mut commands, &mut meshes, &mut materials, &level);
+
+                        *level_editor = LevelEditor::Loaded {
+                            path,
+                            level,
+                            entities,
+                            player,
+                            mode: Mode::Camera { panning: false },
+                            spawn_mode: SpawnMode::Neutral,
+                            hovered: None,
+                        };
+                    }
+                }
+            }
         }
     }
 }
@@ -717,54 +820,9 @@ fn finish_loading(
                 let mut entities =
                     level::create_world(&mut commands, level, &mut meshes, &mut materials);
 
-                entities.push(
-                    commands
-                        .spawn_bundle(TransformBundle {
-                            local: Transform::identity()
-                                .looking_at(Vec3::new(-5.0, -5.0, -5.0), Vec3::Y),
-                            ..Default::default()
-                        })
-                        .with_children(|parent| {
-                            parent
-                                .spawn_bundle(Camera3dBundle {
-                                    /*
-                                    [note: implicit camera direction]
+                entities.push(spawn_camera(&mut commands));
 
-                                    We assume the camera is always facing in the direction of -Z
-                                    and allow the parent transform to control orientation.
-                                    */
-                                    transform: Transform::from_xyz(0.0, 0.0, 40.0)
-                                        .looking_at(Vec3::ZERO, Vec3::Y),
-                                    projection: PerspectiveProjection {
-                                        fov: (60.0 / 360.0) * 2.0 * std::f32::consts::PI,
-                                        ..default()
-                                    }
-                                    .into(),
-                                    ..Default::default()
-                                })
-                                .insert(Zoom);
-                        })
-                        .insert(Pan)
-                        .insert(Rotate { rotating: false })
-                        .id(),
-                );
-
-                let player = commands
-                    .spawn_bundle(PbrBundle {
-                        mesh: meshes.add(Mesh::from(shape::Capsule {
-                            radius: player::CAPSULE_RADIUS,
-                            depth: player::CAPSULE_DEPTH,
-                            ..default()
-                        })),
-                        material: materials.add(player::CAPSULE_COLOR.into()),
-                        transform: Transform::from_translation(level.player_start),
-                        ..default()
-                    })
-                    .insert(Collider::capsule_y(
-                        player::CAPSULE_DEPTH / 2.0,
-                        player::CAPSULE_RADIUS,
-                    ))
-                    .id();
+                let player = spawn_player(&mut commands, &mut meshes, &mut materials, level);
 
                 commands.insert_resource(LevelEditor::Loaded {
                     path: path.clone(),
@@ -780,12 +838,68 @@ fn finish_loading(
     }
 }
 
+fn spawn_camera(commands: &mut Commands) -> Entity {
+    commands
+        .spawn_bundle(TransformBundle {
+            local: Transform::identity().looking_at(Vec3::new(-5.0, -5.0, -5.0), Vec3::Y),
+            ..Default::default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn_bundle(Camera3dBundle {
+                    /*
+                    [note: implicit camera direction]
+
+                    We assume the camera is always facing in the direction of -Z
+                    and allow the parent transform to control orientation.
+                    */
+                    transform: Transform::from_xyz(0.0, 0.0, 40.0).looking_at(Vec3::ZERO, Vec3::Y),
+                    projection: PerspectiveProjection {
+                        fov: (60.0 / 360.0) * 2.0 * std::f32::consts::PI,
+                        ..default()
+                    }
+                    .into(),
+                    ..Default::default()
+                })
+                .insert(Zoom);
+        })
+        .insert(Pan)
+        .insert(Rotate { rotating: false })
+        .id()
+}
+
+fn spawn_player(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    level: &Level,
+) -> Entity {
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Capsule {
+                radius: player::CAPSULE_RADIUS,
+                depth: player::CAPSULE_DEPTH,
+                ..default()
+            })),
+            material: materials.add(player::CAPSULE_COLOR.into()),
+            transform: Transform::from_translation(level.player_start),
+            ..default()
+        })
+        .insert(Collider::capsule_y(
+            player::CAPSULE_DEPTH / 2.0,
+            player::CAPSULE_RADIUS,
+        ))
+        .id()
+}
+
 pub struct LevelEditorPlugin;
 
 impl Plugin for LevelEditorPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<LoadEvent>()
+            .add_event::<TestEvent>()
             .add_system(handle_load_event)
+            .add_system(handle_test_event)
             .add_system(finish_loading)
             .add_system(handle_left_click)
             .add_system(handle_right_click)

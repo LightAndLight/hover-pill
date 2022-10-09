@@ -15,7 +15,7 @@ use crate::{
     ui::{overlay, UI},
 };
 
-#[derive(Serialize, Deserialize, TypeUuid, Clone)]
+#[derive(Serialize, Deserialize, TypeUuid, Clone, Default)]
 #[uuid = "a79e94e4-1d11-4581-82f8-fb82cbc67f43"]
 pub struct Level {
     pub next_level: Option<String>,
@@ -273,7 +273,7 @@ pub fn load_level(
         meshes,
         materials,
         Transform::from_translation(level.player_start),
-        fuel_changed,
+        Some(fuel_changed),
     );
 
     if let Some(overlay_text) = &level.initial_overlay {

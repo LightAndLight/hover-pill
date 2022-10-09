@@ -18,7 +18,7 @@ pub fn spawn_player(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     transform: Transform,
-    fuel_changed: &mut EventWriter<FuelChanged>,
+    fuel_changed: Option<&mut EventWriter<FuelChanged>>,
 ) -> Entity {
     let initial_jump_impulse = 5. * Vec3::Y;
 
@@ -55,9 +55,11 @@ pub fn spawn_player(
         })
         .id();
 
-    fuel_changed.send(FuelChanged {
-        new_value: fuel.value,
-    });
+    if let Some(fuel_changed) = fuel_changed {
+        fuel_changed.send(FuelChanged {
+            new_value: fuel.value,
+        });
+    }
 
     entity
 }
