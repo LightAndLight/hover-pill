@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::EguiContext;
-use bevy_rapier3d::prelude::{QueryFilter, RapierContext, Real};
+use bevy_rapier3d::prelude::{QueryFilter, RapierContext, RayIntersection, Real};
 
 use crate::{
     camera::Zoom,
@@ -20,15 +20,13 @@ pub enum LevelEditor {
         path: String,
         entities: Vec<Entity>,
         mode: Mode,
-        selected: Option<Entity>,
         hovered: Option<Entity>,
     },
 }
 
-#[derive(PartialEq, Eq)]
 pub enum Mode {
     Camera { panning: bool },
-    Object,
+    Object { moving: Option<(Vec2, Entity)> },
 }
 
 pub struct LoadEvent {
@@ -73,6 +71,9 @@ struct Pan;
 fn handle_left_click(
     mut level_editor: Option<ResMut<LevelEditor>>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
+    windows: Res<Windows>,
+    rapier_context: Res<RapierContext>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
 ) {
     for event in mouse_button_events.iter() {
         if let MouseButton::Left = event.button {
@@ -84,7 +85,17 @@ fn handle_left_click(
                                 Mode::Camera { panning } => {
                                     *panning = true;
                                 }
-                                Mode::Object => {}
+                                Mode::Object { moving } => {
+                                    let cursor_position =
+                                        windows.get_primary().unwrap().cursor_position().unwrap();
+                                    let (camera, transform) = camera_query.iter().next().unwrap();
+
+                                    let ray =
+                                        screen_point_to_world(camera, transform, cursor_position);
+
+                                    *moving = closest_intersection(rapier_context.as_ref(), ray)
+                                        .map(|(entity, _)| (cursor_position, entity));
+                                }
                             }
                         }
                     }
@@ -96,7 +107,9 @@ fn handle_left_click(
                                 Mode::Camera { panning } => {
                                     *panning = false;
                                 }
-                                Mode::Object => {}
+                                Mode::Object { moving } => {
+                                    *moving = None;
+                                }
                             }
                         }
                     }
@@ -133,6 +146,87 @@ fn handle_right_click(
     }
 }
 
+struct Ray {
+    origin: Vec3,
+    direction: Vec3,
+}
+
+// TODO: use viewport_to_world when 0.9 is released.
+fn screen_point_to_world(
+    camera: &Camera,
+    transform: &GlobalTransform,
+    screen_position: Vec2,
+) -> Ray {
+    let Vec2 {
+        x: logical_width,
+        y: logical_height,
+    } = camera.logical_viewport_size().unwrap();
+
+    let screen_position_ndc = Vec2 {
+        /*
+        0.0 -> -1.0
+        logical_width / 2 -> 0.0
+        logical_width -> 1.0
+        */
+        // x: (screen_position.x - logical_width / 2.0) / (logical_width / 2.0),
+        // x: 2.0 * (screen_position.x - logical_width / 2.0) / logical_width,
+        // x: (2.0 * screen_position.x - logical_width) / logical_width,
+        // x: (2.0 * screen_position.x) / logical_width - logical_width / logical_width,
+        x: 2.0 * screen_position.x / logical_width - 1.0,
+        /*
+        0.0 -> -1.0
+        logical_height / 2 -> 0.0
+        logical_height -> 1.0
+        */
+        y: 2.0 * screen_position.y / logical_height - 1.0,
+    };
+
+    let ndc_near = screen_position_ndc.extend(1.0);
+    let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
+
+    let ndc_to_world = transform.compute_matrix() * camera.projection_matrix().inverse();
+
+    let world_near = ndc_to_world.project_point3(ndc_near);
+    let world_far = ndc_to_world.project_point3(ndc_far);
+
+    Ray {
+        origin: world_near,
+        direction: world_far - world_near,
+    }
+}
+
+fn closest_intersection(
+    rapier_context: &RapierContext,
+    ray: Ray,
+) -> Option<(Entity, RayIntersection)> {
+    let mut closest: Option<(Entity, RayIntersection)> = None;
+
+    rapier_context.intersections_with_ray(
+        ray.origin,
+        ray.direction,
+        Real::MAX,
+        false,
+        QueryFilter::new(),
+        |entity, intersection| match closest.as_mut() {
+            Some((closest_entity, closest_intersection)) => {
+                if intersection.point.z > closest_intersection.point.z {
+                    *closest_entity = entity;
+                    *closest_intersection = intersection;
+                }
+
+                true
+            }
+            None => {
+                closest = Some((entity, intersection));
+
+                true
+            }
+        },
+    );
+
+    closest
+}
+
 fn handle_object_hover(
     mut commands: Commands,
     mut cursor_move_events: EventReader<CursorMoved>,
@@ -142,7 +236,7 @@ fn handle_object_hover(
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
-            mode: Mode::Object,
+            mode: Mode::Object { .. },
             hovered,
             ..
         } = level_editor.as_mut()
@@ -151,67 +245,9 @@ fn handle_object_hover(
                 let cursor_position = event.position;
                 let (camera, transform) = camera_query.iter().next().unwrap();
 
-                let Vec2 {
-                    x: logical_width,
-                    y: logical_height,
-                } = camera.logical_viewport_size().unwrap();
+                let ray = screen_point_to_world(camera, transform, cursor_position);
 
-                let screen_position_ndc = Vec2 {
-                    /*
-                    0.0 -> -1.0
-                    logical_width / 2 -> 0.0
-                    logical_width -> 1.0
-                    */
-                    // x: (screen_position.x - logical_width / 2.0) / (logical_width / 2.0),
-                    // x: 2.0 * (screen_position.x - logical_width / 2.0) / logical_width,
-                    // x: (2.0 * screen_position.x - logical_width) / logical_width,
-                    // x: (2.0 * screen_position.x) / logical_width - logical_width / logical_width,
-                    x: 2.0 * cursor_position.x / logical_width - 1.0,
-                    /*
-                    0.0 -> -1.0
-                    logical_height / 2 -> 0.0
-                    logical_height -> 1.0
-                    */
-                    y: 2.0 * cursor_position.y / logical_height - 1.0,
-                };
-
-                let ndc_near = screen_position_ndc.extend(1.0);
-                let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
-
-                let ndc_to_world =
-                    transform.compute_matrix() * camera.projection_matrix().inverse();
-
-                let world_near = ndc_to_world.project_point3(ndc_near);
-                let world_far = ndc_to_world.project_point3(ndc_far);
-
-                let ray_origin = world_near;
-                let ray_dir = world_far - world_near;
-
-                let mut nearest_intersected_entity: Option<(Entity, Vec3)> = None;
-                rapier_context.intersections_with_ray(
-                    ray_origin,
-                    ray_dir,
-                    Real::MAX,
-                    false,
-                    QueryFilter::new(),
-                    |entity, intersection| match nearest_intersected_entity.as_mut() {
-                        Some((nearest_entity, nearest_position)) => {
-                            if intersection.point.z > nearest_position.z {
-                                *nearest_entity = entity;
-                                *nearest_position = intersection.point;
-                            }
-
-                            true
-                        }
-                        None => {
-                            nearest_intersected_entity = Some((entity, intersection.point));
-
-                            true
-                        }
-                    },
-                );
-
-                match nearest_intersected_entity {
+                match closest_intersection(rapier_context.as_ref(), ray) {
                     Some((entity, _position)) => {
                         debug!("hovered {:?}", entity);
                         if *hovered != Some(entity) {
@@ -236,29 +272,94 @@ fn handle_object_hover(
 
 fn handle_drag(
     mut mouse_move_events: EventReader<MouseMotion>,
-    level_editor: Option<Res<LevelEditor>>,
+    level_editor: Option<ResMut<LevelEditor>>,
     mut query: Query<&mut Transform, (With<Pan>, Without<Camera>)>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    mut transform_query: Query<&mut Transform, (Without<Pan>, Without<Camera>)>,
 ) {
-    if let Some(level_editor) = level_editor {
-        if let LevelEditor::Loaded {
-            mode: Mode::Camera { panning: true },
-            ..
-        } = level_editor.as_ref()
-        {
-            for event in mouse_move_events.iter() {
-                let delta = event.delta;
-                // delta.x points to the right
-                // delta.y points to the bottom
+    if let Some(mut level_editor) = level_editor {
+        if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
+            match mode {
+                Mode::Camera { panning } => {
+                    if *panning {
+                        for event in mouse_move_events.iter() {
+                            let delta = event.delta;
+                            // delta.x points to the right
+                            // delta.y points to the bottom
 
-                for mut transform in &mut query {
-                    // Assume the camera is always looking in the -Z direction (into the screen)
-                    // See [note: implicit camera direction]
-                    let look_direction = transform.rotation * -Vec3::Z;
+                            for mut transform in &mut query {
+                                // Assume the camera is always looking in the -Z direction (into the screen)
+                                // See [note: implicit camera direction]
+                                let look_direction = transform.rotation * -Vec3::Z;
 
-                    let left = look_direction.cross(-Vec3::Y).normalize();
-                    let up = Vec3::Y;
-                    let scale = 0.05;
-                    transform.translation += scale * (delta.x * left + delta.y * up);
+                                let left = look_direction.cross(-Vec3::Y).normalize();
+                                let up = Vec3::Y;
+                                let scale = 0.05;
+                                transform.translation += scale * (delta.x * left + delta.y * up);
+                            }
+                        }
+                    }
+                }
+                Mode::Object { moving } => {
+                    if let Some((cursor_position, entity)) = moving {
+                        if let Ok(mut transform) = transform_query.get_mut(*entity) {
+                            let (camera, camera_global_transform) =
+                                camera_query.iter().next().unwrap();
+
+                            for event in mouse_move_events.iter() {
+                                let cursor_start = *cursor_position;
+                                let cursor_end = cursor_start
+                                    + Vec2 {
+                                        x: event.delta.x,
+                                        y: -event.delta.y,
+                                    };
+                                *cursor_position = cursor_start + event.delta;
+
+                                // TODO: replace with `world_to_ndc` when 0.9 is released
+                                let ndc_start = {
+                                    let Vec2 {
+                                        x: logical_width,
+                                        y: logical_height,
+                                    } = camera.logical_viewport_size().unwrap();
+
+                                    let screen_position_ndc = Vec2 {
+                                        x: 2.0 * cursor_start.x / logical_width - 1.0,
+                                        y: 2.0 * cursor_start.y / logical_height - 1.0,
+                                    };
+
+                                    screen_position_ndc.extend(1.0)
+                                };
+
+                                let ndc_end = {
+                                    let Vec2 {
+                                        x: logical_width,
+                                        y: logical_height,
+                                    } = camera.logical_viewport_size().unwrap();
+
+                                    let screen_position_ndc = Vec2 {
+                                        x: 2.0 * cursor_end.x / logical_width - 1.0,
+                                        y: 2.0 * cursor_end.y / logical_height - 1.0,
+                                    };
+
+                                    screen_position_ndc.extend(1.0)
+                                };
+
+                                let object_ndc_start = camera
+                                    .world_to_ndc(camera_global_transform, transform.translation)
+                                    .unwrap();
+                                let object_ndc_end = object_ndc_start + (ndc_end - ndc_start);
+
+                                let object_world_end = {
+                                    let ndc_to_world = camera_global_transform.compute_matrix()
+                                        * camera.projection_matrix().inverse();
+
+                                    ndc_to_world.project_point3(object_ndc_end)
+                                };
+
+                                transform.translation = object_world_end;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -316,7 +417,13 @@ fn create_ui(
                         {
                             *mode = Mode::Camera { panning: false };
                         };
-                        let _ = ui.radio_value(mode, Mode::Object, "object");
+
+                        if ui
+                            .radio(matches!(mode, Mode::Object { .. }), "object")
+                            .clicked()
+                        {
+                            *mode = Mode::Object { moving: None }
+                        };
                     });
                 });
         }
@@ -372,7 +479,6 @@ fn finish_loading(
                     path: path.clone(),
                     entities,
                     mode: Mode::Camera { panning: false },
-                    selected: None,
                     hovered: None,
                 });
             }
