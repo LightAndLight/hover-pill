@@ -20,6 +20,7 @@ pub enum LevelEditor {
     Loaded {
         path: String,
         entities: Vec<Entity>,
+        player: Entity,
         mode: Mode,
         spawn_mode: SpawnMode,
         hovered: Option<Entity>,
@@ -711,28 +712,27 @@ fn finish_loading(
                         .id(),
                 );
 
-                entities.push(
-                    commands
-                        .spawn_bundle(PbrBundle {
-                            mesh: meshes.add(Mesh::from(shape::Capsule {
-                                radius: player::CAPSULE_RADIUS,
-                                depth: player::CAPSULE_DEPTH,
-                                ..default()
-                            })),
-                            material: materials.add(player::CAPSULE_COLOR.into()),
-                            transform: Transform::from_translation(level.player_start),
+                let player = commands
+                    .spawn_bundle(PbrBundle {
+                        mesh: meshes.add(Mesh::from(shape::Capsule {
+                            radius: player::CAPSULE_RADIUS,
+                            depth: player::CAPSULE_DEPTH,
                             ..default()
-                        })
-                        .insert(Collider::capsule_y(
-                            player::CAPSULE_DEPTH / 2.0,
-                            player::CAPSULE_RADIUS,
-                        ))
-                        .id(),
-                );
+                        })),
+                        material: materials.add(player::CAPSULE_COLOR.into()),
+                        transform: Transform::from_translation(level.player_start),
+                        ..default()
+                    })
+                    .insert(Collider::capsule_y(
+                        player::CAPSULE_DEPTH / 2.0,
+                        player::CAPSULE_RADIUS,
+                    ))
+                    .id();
 
                 commands.insert_resource(LevelEditor::Loaded {
                     path: path.clone(),
                     entities,
+                    player,
                     mode: Mode::Camera { panning: false },
                     spawn_mode: SpawnMode::Neutral,
                     hovered: None,
