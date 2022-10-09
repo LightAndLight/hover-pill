@@ -4,11 +4,12 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::EguiContext;
-use bevy_rapier3d::prelude::{QueryFilter, RapierContext, RayIntersection, Real};
+use bevy_rapier3d::prelude::{Collider, QueryFilter, RapierContext, RayIntersection, Real};
 
 use crate::{
     camera::Zoom,
     level::{self, Level},
+    player,
 };
 
 pub enum LevelEditor {
@@ -698,6 +699,25 @@ fn finish_loading(
                         })
                         .insert(Pan)
                         .insert(Rotate { rotating: false })
+                        .id(),
+                );
+
+                entities.push(
+                    commands
+                        .spawn_bundle(PbrBundle {
+                            mesh: meshes.add(Mesh::from(shape::Capsule {
+                                radius: player::CAPSULE_RADIUS,
+                                depth: player::CAPSULE_DEPTH,
+                                ..default()
+                            })),
+                            material: materials.add(player::CAPSULE_COLOR.into()),
+                            transform: Transform::from_translation(level.player_start),
+                            ..default()
+                        })
+                        .insert(Collider::capsule_y(
+                            player::CAPSULE_DEPTH / 2.0,
+                            player::CAPSULE_RADIUS,
+                        ))
                         .id(),
                 );
 

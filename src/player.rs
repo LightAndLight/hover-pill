@@ -9,6 +9,10 @@ use crate::{
     jump::JumpImpulse,
 };
 
+pub const CAPSULE_RADIUS: f32 = 0.5;
+pub const CAPSULE_DEPTH: f32 = 2.0 * CAPSULE_RADIUS;
+pub const CAPSULE_COLOR: Color = Color::rgb(0.8, 0.7, 0.3);
+
 pub fn spawn_player(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -16,9 +20,6 @@ pub fn spawn_player(
     transform: Transform,
     fuel_changed: &mut EventWriter<FuelChanged>,
 ) -> Entity {
-    let capsule_radius = 0.5;
-    let capsule_depth = 2.0 * capsule_radius;
-
     let initial_jump_impulse = 5. * Vec3::Y;
 
     let fuel = Fuel { value: 1.0 };
@@ -26,15 +27,15 @@ pub fn spawn_player(
     let entity = commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
-                radius: capsule_radius,
-                depth: capsule_depth,
+                radius: CAPSULE_RADIUS,
+                depth: CAPSULE_DEPTH,
                 ..default()
             })),
-            material: materials.add(Color::rgb(0.8, 0.7, 0.3).into()),
+            material: materials.add(CAPSULE_COLOR.into()),
             transform,
             ..default()
         })
-        .insert(Collider::capsule_y(capsule_depth / 2.0, capsule_radius))
+        .insert(Collider::capsule_y(CAPSULE_DEPTH / 2.0, CAPSULE_RADIUS))
         .insert(ActiveEvents::COLLISION_EVENTS)
         .insert(RigidBody::Dynamic)
         .insert(ColliderMassProperties::Density(1.0))
