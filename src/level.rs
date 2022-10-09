@@ -102,13 +102,18 @@ pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
     }
 }
 
+pub struct World {
+    pub light: Entity,
+    pub level_items: Vec<Entity>,
+}
+
 pub fn create_world(
     commands: &mut Commands,
     level: &Level,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-) -> Vec<Entity> {
-    std::iter::once({
+) -> World {
+    let light = {
         commands
             .spawn_bundle(DirectionalLightBundle {
                 directional_light: DirectionalLight {
@@ -131,9 +136,12 @@ pub fn create_world(
                 ..default()
             })
             .id()
-    })
-    .chain(level.structure.iter().map(|item| {
-        match item {
+    };
+
+    let level_items = level
+        .structure
+        .iter()
+        .map(|item| match item {
             LevelItem::Wall {
                 wall_type,
                 position,
@@ -184,9 +192,10 @@ pub fn create_world(
                     });
                 })
                 .id(),
-        }
-    }))
-    .collect()
+        })
+        .collect();
+
+    World { light, level_items }
 }
 
 pub fn spawn_wall_goal<'w, 's, 'a>(
@@ -266,7 +275,14 @@ pub fn load_level(
 ) {
     debug!("started loading level");
 
-    let entities: Vec<Entity> = create_world(commands, level, meshes, materials);
+    let entities: Vec<Entity> = {
+        let World {
+            light,
+            mut level_items,
+        } = create_world(commands, level, meshes, materials);
+        level_items.push(light);
+        level_items
+    };
 
     let player = player::spawn_player(
         commands,

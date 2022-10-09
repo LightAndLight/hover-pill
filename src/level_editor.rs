@@ -734,8 +734,17 @@ fn handle_test_event(
                             commands.entity(*entity).despawn_recursive();
                         }
 
-                        let mut entities =
+                        let world =
                             level::create_world(&mut commands, &level, &mut meshes, &mut materials);
+
+                        let mut entities = {
+                            let level::World {
+                                light,
+                                mut level_items,
+                            } = world;
+                            level_items.push(light);
+                            level_items
+                        };
 
                         entities.push(player::spawn_player(
                             &mut commands,
@@ -767,8 +776,21 @@ fn handle_test_event(
                             commands.entity(entity).despawn_recursive();
                         }
 
-                        let mut entities =
+                        let world =
                             level::create_world(&mut commands, &level, &mut meshes, &mut materials);
+
+                        for (index, entity) in world.level_items.iter().enumerate() {
+                            commands.entity(*entity).insert(LevelItem { index });
+                        }
+
+                        let mut entities = {
+                            let level::World {
+                                light,
+                                mut level_items,
+                            } = world;
+                            level_items.push(light);
+                            level_items
+                        };
 
                         entities.push(spawn_camera(&mut commands));
 
@@ -807,6 +829,37 @@ fn move_player(
     }
 }
 
+#[derive(Component)]
+struct LevelItem {
+    index: usize,
+}
+
+fn move_level_item(
+    level_editor: Option<ResMut<LevelEditor>>,
+    query: Query<(&LevelItem, &Transform), Changed<Transform>>,
+) {
+    if let Some(mut level_editor) = level_editor {
+        if let LevelEditor::Loaded { level, .. } = level_editor.as_mut() {
+            for (level_item, transform) in &query {
+                match &mut level.structure.get_mut(level_item.index) {
+                    Some(level::LevelItem::Wall { position, .. }) => {
+                        *position = transform.translation;
+                    }
+                    Some(level::LevelItem::FuelBall { position }) => {
+                        *position = transform.translation;
+                    }
+                    Some(level::LevelItem::Light { position, .. }) => {
+                        *position = transform.translation;
+                    }
+                    None => {
+                        debug!("no level item at index {}", level_item.index);
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn finish_loading(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -817,8 +870,21 @@ fn finish_loading(
     if let Some(level_editor) = level_editor {
         if let LevelEditor::Loading { path, handle } = level_editor.as_ref() {
             if let Some(level) = assets.get(handle) {
-                let mut entities =
-                    level::create_world(&mut commands, level, &mut meshes, &mut materials);
+                let world = level::create_world(&mut commands, level, &mut meshes, &mut materials);
+
+                for (index, entity) in world.level_items.iter().enumerate() {
+                    commands.entity(*entity).insert(LevelItem { index });
+                }
+
+                let mut entities = {
+                    let level::World {
+                        light,
+                        mut level_items,
+                    } = world;
+
+                    level_items.push(light);
+                    level_items
+                };
 
                 entities.push(spawn_camera(&mut commands));
 
@@ -908,6 +974,7 @@ impl Plugin for LevelEditorPlugin {
             .add_system(handle_drag_rotating)
             .add_system(handle_spawn)
             .add_system(move_player)
+            .add_system(move_level_item)
             .add_system(create_ui);
     }
 }
