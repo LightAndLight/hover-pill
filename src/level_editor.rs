@@ -13,6 +13,7 @@ use crate::{
 };
 
 pub enum LevelEditor {
+    Empty,
     Loading {
         path: String,
         handle: Handle<Level>,
@@ -29,7 +30,8 @@ pub enum LevelEditor {
     Testing {
         path: String,
         level: Level,
-        entities: Vec<Entity>,
+        player: Entity,
+        entities: level::Entities,
     },
 }
 
@@ -734,47 +736,38 @@ fn handle_test_event(
                             commands.entity(*entity).despawn_recursive();
                         }
 
-                        let world =
+                        let entities =
                             level::create_world(&mut commands, &level, &mut meshes, &mut materials);
 
-                        let mut entities = {
-                            let level::World {
-                                light,
-                                mut level_items,
-                            } = world;
-                            level_items.push(light);
-                            level_items
-                        };
-
-                        entities.push(player::spawn_player(
+                        let player = player::spawn_player(
                             &mut commands,
                             &mut meshes,
                             &mut materials,
                             Transform::from_translation(level.player_start),
                             None,
-                        ));
+                        );
 
                         *level_editor = LevelEditor::Testing {
                             path,
                             level,
+                            player,
                             entities,
                         }
                     }
                 }
                 TestEvent::Stop => {
+                    let level_editor_content =
+                        std::mem::replace(level_editor.as_mut(), LevelEditor::Empty);
+
                     if let LevelEditor::Testing {
                         path,
                         level,
+                        player,
                         entities,
-                    } = level_editor.as_mut()
+                    } = level_editor_content
                     {
-                        let path = std::mem::take(path);
-                        let level = std::mem::take(level);
-                        let entities = std::mem::take(entities);
-
-                        for entity in entities.into_iter() {
-                            commands.entity(entity).despawn_recursive();
-                        }
+                        commands.entity(player).despawn_recursive();
+                        entities.despawn(&mut commands);
 
                         let world =
                             level::create_world(&mut commands, &level, &mut meshes, &mut materials);
@@ -784,7 +777,7 @@ fn handle_test_event(
                         }
 
                         let mut entities = {
-                            let level::World {
+                            let level::Entities {
                                 light,
                                 mut level_items,
                             } = world;
@@ -877,7 +870,7 @@ fn finish_loading(
                 }
 
                 let mut entities = {
-                    let level::World {
+                    let level::Entities {
                         light,
                         mut level_items,
                     } = world;

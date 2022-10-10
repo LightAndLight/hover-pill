@@ -102,9 +102,19 @@ pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
     }
 }
 
-pub struct World {
+pub struct Entities {
     pub light: Entity,
     pub level_items: Vec<Entity>,
+}
+
+impl Entities {
+    pub fn despawn(self, commands: &mut Commands) {
+        commands.entity(self.light).despawn_recursive();
+
+        for level_item in self.level_items {
+            commands.entity(level_item).despawn_recursive();
+        }
+    }
 }
 
 pub fn create_world(
@@ -112,7 +122,7 @@ pub fn create_world(
     level: &Level,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-) -> World {
+) -> Entities {
     let light = {
         commands
             .spawn_bundle(DirectionalLightBundle {
@@ -195,7 +205,7 @@ pub fn create_world(
         })
         .collect();
 
-    World { light, level_items }
+    Entities { light, level_items }
 }
 
 pub fn spawn_wall_goal<'w, 's, 'a>(
@@ -276,7 +286,7 @@ pub fn load_level(
     debug!("started loading level");
 
     let entities: Vec<Entity> = {
-        let World {
+        let Entities {
             light,
             mut level_items,
         } = create_world(commands, level, meshes, materials);
