@@ -4,6 +4,7 @@ use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
 use hover_pill::{
     camera::ZoomPlugin,
+    colored_wireframe::{ColoredWireframeConfig, ColoredWireframePlugin},
     controls::ControlsPlugin,
     fuel::FuelPlugin,
     fuel_ball::FuelBallPlugin,
@@ -35,7 +36,10 @@ fn main() {
     let mut app = App::new();
 
     app.add_plugins(DefaultPlugins)
-        .add_plugin(WireframePlugin)
+        .add_plugin(ColoredWireframePlugin)
+        .insert_resource(ColoredWireframeConfig {
+            global: Some(Color::GREEN),
+        })
         .add_plugin(EguiPlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(ui::button::ButtonPlugin)

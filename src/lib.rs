@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod colored_wireframe;
 pub mod controls;
 pub mod fuel;
 pub mod fuel_ball;
