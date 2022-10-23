@@ -1,4 +1,4 @@
-use bevy::{pbr::wireframe::WireframePlugin, prelude::*};
+use bevy::prelude::*;
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
@@ -38,7 +38,7 @@ fn main() {
     app.add_plugins(DefaultPlugins)
         .add_plugin(ColoredWireframePlugin)
         .insert_resource(ColoredWireframeConfig {
-            global: Some(Color::GREEN),
+            color: Color::GREEN,
         })
         .add_plugin(EguiPlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
