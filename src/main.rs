@@ -37,9 +37,7 @@ fn main() {
 
     app.add_plugins(DefaultPlugins)
         .add_plugin(ColoredWireframePlugin)
-        .insert_resource(ColoredWireframeConfig {
-            color: Color::GREEN,
-        })
+        .insert_resource(ColoredWireframeConfig { enabled: true })
         .add_plugin(EguiPlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(ui::button::ButtonPlugin)

@@ -11,6 +11,7 @@ use bevy_rapier3d::prelude::{Collider, QueryFilter, RapierContext, RayIntersecti
 
 use crate::{
     camera::Zoom,
+    colored_wireframe::ColoredWireframe,
     level::{self, Level},
     player,
 };
@@ -302,7 +303,7 @@ fn handle_object_hover(
     camera_query: Query<(&Camera, &GlobalTransform)>,
     rapier_context: Res<RapierContext>,
     level_editor: Option<ResMut<LevelEditor>>,
-    wireframe_query: Query<Entity, With<Wireframe>>,
+    wireframe_query: Query<Entity, With<ColoredWireframe>>,
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
@@ -321,14 +322,16 @@ fn handle_object_hover(
                         debug!("hovered {:?}", entity);
 
                         for entity in &wireframe_query {
-                            commands.entity(entity).remove::<Wireframe>();
+                            commands.entity(entity).remove::<ColoredWireframe>();
                         }
 
-                        commands.entity(entity).insert(Wireframe);
+                        commands.entity(entity).insert(ColoredWireframe {
+                            color: Color::WHITE,
+                        });
                     }
                     None => {
                         for entity in &wireframe_query {
-                            commands.entity(entity).remove::<Wireframe>();
+                            commands.entity(entity).remove::<ColoredWireframe>();
                         }
                     }
                 }
