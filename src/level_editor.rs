@@ -3,7 +3,6 @@ use std::{fs::File, path::PathBuf};
 use bevy::{
     asset::AssetServerSettings,
     input::mouse::{MouseButtonInput, MouseMotion},
-    pbr::wireframe::Wireframe,
     prelude::*,
 };
 use bevy_egui::EguiContext;
@@ -101,7 +100,11 @@ fn handle_load_event(
 #[derive(Component)]
 struct Pan;
 
+#[derive(Component)]
+struct Selected;
+
 fn handle_left_click(
+    mut commands: Commands,
     mut level_editor: Option<ResMut<LevelEditor>>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     windows: Res<Windows>,
@@ -132,9 +135,17 @@ fn handle_left_click(
                                         ray,
                                     )
                                     .map(
-                                        |(entity, intersection)| Moving {
-                                            intersection_point: intersection.point,
-                                            entity,
+                                        |(entity, intersection)| {
+                                            commands
+                                                .entity(entity)
+                                                .insert(ColoredWireframe {
+                                                    color: Color::GREEN,
+                                                })
+                                                .insert(Selected);
+                                            Moving {
+                                                intersection_point: intersection.point,
+                                                entity,
+                                            }
                                         },
                                     );
                                 }
@@ -150,6 +161,12 @@ fn handle_left_click(
                                     *panning = false;
                                 }
                                 Mode::Object { moving } => {
+                                    if let Some(moving) = moving {
+                                        commands
+                                            .entity(moving.entity)
+                                            .remove::<ColoredWireframe>()
+                                            .remove::<Selected>();
+                                    }
                                     *moving = None;
                                 }
                             }
@@ -297,17 +314,20 @@ fn closest_intersection(
     closest
 }
 
+#[derive(Component)]
+struct Hovered;
+
 fn handle_object_hover(
     mut commands: Commands,
     mut cursor_move_events: EventReader<CursorMoved>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     rapier_context: Res<RapierContext>,
     level_editor: Option<ResMut<LevelEditor>>,
-    wireframe_query: Query<Entity, With<ColoredWireframe>>,
+    wireframe_query: Query<Entity, (With<Hovered>, With<ColoredWireframe>)>,
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
-            mode: Mode::Object { .. },
+            mode: Mode::Object { moving: None },
             ..
         } = level_editor.as_mut()
         {
@@ -325,9 +345,12 @@ fn handle_object_hover(
                             commands.entity(entity).remove::<ColoredWireframe>();
                         }
 
-                        commands.entity(entity).insert(ColoredWireframe {
-                            color: Color::WHITE,
-                        });
+                        commands
+                            .entity(entity)
+                            .insert(ColoredWireframe {
+                                color: Color::WHITE,
+                            })
+                            .insert(Hovered);
                     }
                     None => {
                         for entity in &wireframe_query {
