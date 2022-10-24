@@ -137,7 +137,6 @@ fn prepare_wireframes(
     for (entity, colored_wireframe) in &query {
         let color_index = color_uniform.uniform.push(colored_wireframe.color);
 
-        debug!("index: {}", color_index);
         commands
             .get_or_spawn(entity)
             .insert(ColoredWireframeRender {

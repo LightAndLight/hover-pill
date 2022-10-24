@@ -52,7 +52,6 @@ pub enum SpawnMode {
 
 pub struct Moving {
     intersection_point: Vec3,
-    entity: Entity,
 }
 
 pub struct LoadEvent {
@@ -101,7 +100,10 @@ fn handle_load_event(
 struct Pan;
 
 #[derive(Component)]
-struct Selected;
+enum Highlight {
+    Hovered,
+    Selected,
+}
 
 fn handle_left_click(
     mut commands: Commands,
@@ -110,6 +112,7 @@ fn handle_left_click(
     windows: Res<Windows>,
     rapier_context: Res<RapierContext>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
+    highlight_query: Query<Entity, With<Highlight>>,
 ) {
     for event in mouse_button_events.iter() {
         if let MouseButton::Left = event.button {
@@ -136,15 +139,24 @@ fn handle_left_click(
                                     )
                                     .map(
                                         |(entity, intersection)| {
+                                            for entity in &highlight_query {
+                                                trace!("removing Highlight and ColoredWireframe for {:?}", entity);
+                                                commands
+                                                    .entity(entity)
+                                                    .remove::<Highlight>()
+                                                    .remove::<ColoredWireframe>();
+                                            }
+
+                                            trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
                                             commands
                                                 .entity(entity)
                                                 .insert(ColoredWireframe {
                                                     color: Color::GREEN,
                                                 })
-                                                .insert(Selected);
+                                                .insert(Highlight::Selected);
+
                                             Moving {
                                                 intersection_point: intersection.point,
-                                                entity,
                                             }
                                         },
                                     );
@@ -161,12 +173,6 @@ fn handle_left_click(
                                     *panning = false;
                                 }
                                 Mode::Object { moving } => {
-                                    if let Some(moving) = moving {
-                                        commands
-                                            .entity(moving.entity)
-                                            .remove::<ColoredWireframe>()
-                                            .remove::<Selected>();
-                                    }
                                     *moving = None;
                                 }
                             }
@@ -314,48 +320,48 @@ fn closest_intersection(
     closest
 }
 
-#[derive(Component)]
-struct Hovered;
-
 fn handle_object_hover(
     mut commands: Commands,
     mut cursor_move_events: EventReader<CursorMoved>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     rapier_context: Res<RapierContext>,
     level_editor: Option<ResMut<LevelEditor>>,
-    wireframe_query: Query<Entity, (With<Hovered>, With<ColoredWireframe>)>,
+    highlight_query: Query<(Entity, &Highlight)>,
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
-            mode: Mode::Object { moving: None },
+            mode: Mode::Object { .. },
             ..
         } = level_editor.as_mut()
         {
             if let Some(event) = cursor_move_events.iter().last() {
+                for (entity, highlight) in &highlight_query {
+                    if let Highlight::Hovered = highlight {
+                        trace!("removing Highlight and ColoredWireframe for {:?}", entity);
+                        commands
+                            .entity(entity)
+                            .remove::<Highlight>()
+                            .remove::<ColoredWireframe>();
+                    }
+                }
+
                 let cursor_position = event.position;
                 let (camera, transform) = camera_query.iter().next().unwrap();
 
                 let ray = screen_point_to_world(camera, transform, cursor_position);
 
-                match closest_intersection(rapier_context.as_ref(), transform.translation(), ray) {
-                    Some((entity, _position)) => {
+                if let Some((entity, _position)) =
+                    closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
+                {
+                    if !matches!(highlight_query.get(entity), Ok((_, Highlight::Selected))) {
                         debug!("hovered {:?}", entity);
-
-                        for entity in &wireframe_query {
-                            commands.entity(entity).remove::<ColoredWireframe>();
-                        }
 
                         commands
                             .entity(entity)
                             .insert(ColoredWireframe {
                                 color: Color::WHITE,
                             })
-                            .insert(Hovered);
-                    }
-                    None => {
-                        for entity in &wireframe_query {
-                            commands.entity(entity).remove::<ColoredWireframe>();
-                        }
+                            .insert(Highlight::Hovered);
                     }
                 }
             }
@@ -374,7 +380,7 @@ fn handle_drag(
     level_editor: Option<ResMut<LevelEditor>>,
     mut query: Query<&mut Transform, (With<Pan>, Without<Camera>)>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut transform_query: Query<&mut Transform, (Without<Pan>, Without<Camera>)>,
+    mut transform_query: Query<(&Highlight, &mut Transform), (Without<Pan>, Without<Camera>)>,
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
@@ -401,154 +407,155 @@ fn handle_drag(
                 }
                 Mode::Object { moving } => {
                     if let Some(moving) = moving {
-                        if let Ok(mut transform) = transform_query.get_mut(moving.entity) {
-                            let (camera, camera_global_transform) =
-                                camera_query.iter().next().unwrap();
+                        let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
 
-                            if let Some(cursor_moved) = cursor_moved_events.iter().last() {
-                                let cursor_position = cursor_moved.position;
+                        if let Some(cursor_moved) = cursor_moved_events.iter().last() {
+                            let cursor_position = cursor_moved.position;
 
-                                let center_ray = {
-                                    let screen_position_ndc = Vec2::ZERO;
+                            let center_ray = {
+                                let screen_position_ndc = Vec2::ZERO;
 
-                                    let ndc_near = screen_position_ndc.extend(1.0);
-                                    let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
+                                let ndc_near = screen_position_ndc.extend(1.0);
+                                let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
 
-                                    let ndc_to_world = camera_global_transform.compute_matrix()
-                                        * camera.projection_matrix().inverse();
+                                let ndc_to_world = camera_global_transform.compute_matrix()
+                                    * camera.projection_matrix().inverse();
 
-                                    let world_near = ndc_to_world.project_point3(ndc_near);
-                                    let world_far = ndc_to_world.project_point3(ndc_far);
+                                let world_near = ndc_to_world.project_point3(ndc_near);
+                                let world_far = ndc_to_world.project_point3(ndc_far);
 
-                                    Ray {
-                                        origin: world_near,
-                                        direction: (world_far - world_near).normalize(),
-                                    }
-                                };
-                                let cursor_ray = screen_point_to_world(
-                                    camera,
-                                    camera_global_transform,
-                                    cursor_position,
-                                );
-                                debug!("cursor ray: {:?}", cursor_ray);
+                                Ray {
+                                    origin: world_near,
+                                    direction: (world_far - world_near).normalize(),
+                                }
+                            };
+                            let cursor_ray = screen_point_to_world(
+                                camera,
+                                camera_global_transform,
+                                cursor_position,
+                            );
+                            debug!("cursor ray: {:?}", cursor_ray);
 
-                                /*
-                                A plane is defined of the set of points `(x, y, z)` that satisfy the equation
-                                `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0` where `n` is a vector perpendicular to the
-                                plane and `(x_0, y_0, z_0)` is a predetermined point that lies on the plane.
+                            /*
+                            A plane is defined of the set of points `(x, y, z)` that satisfy the equation
+                            `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0` where `n` is a vector perpendicular to the
+                            plane and `(x_0, y_0, z_0)` is a predetermined point that lies on the plane.
 
-                                `center_ray`'s direction is perpendicular to the near/far planes, and the predetermined point
-                                is the point of intersection when the user started moving. This gives us a "movement plane".
+                            `center_ray`'s direction is perpendicular to the near/far planes, and the predetermined point
+                            is the point of intersection when the user started moving. This gives us a "movement plane".
 
-                                The target object's destination is the point where `cursor_ray` intersects the movement plane.
+                            The target object's destination is the point where `cursor_ray` intersects the movement plane.
 
-                                We need to find some `t` and `(x, y, z)` such that `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0`
-                                and `cursor_ray.origin + t * cursor_ray.direction = (x, y, z)`.
+                            We need to find some `t` and `(x, y, z)` such that `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0`
+                            and `cursor_ray.origin + t * cursor_ray.direction = (x, y, z)`.
 
-                                The ray equation expands to:
+                            The ray equation expands to:
 
-                                ```
-                                cursor_ray.origin.x + t * cursor_ray.direction.x = x
-                                cursor_ray.origin.y + t * cursor_ray.direction.y = y
-                                cursor_ray.origin.z + t * cursor_ray.direction.z = z
-                                ```
+                            ```
+                            cursor_ray.origin.x + t * cursor_ray.direction.x = x
+                            cursor_ray.origin.y + t * cursor_ray.direction.y = y
+                            cursor_ray.origin.z + t * cursor_ray.direction.z = z
+                            ```
 
-                                and when substituted in to the plane equation:
+                            and when substituted in to the plane equation:
 
-                                ```
-                                n_x((cursor_ray.origin.x + t * cursor_ray.direction.x) - x_0)
-                                + n_y((cursor_ray.origin.y + t * cursor_ray.direction.y) - y_0)
-                                + n_z((cursor_ray.origin.z + t * cursor_ray.direction.z) - z_0)
-                                = 0
+                            ```
+                            n_x((cursor_ray.origin.x + t * cursor_ray.direction.x) - x_0)
+                            + n_y((cursor_ray.origin.y + t * cursor_ray.direction.y) - y_0)
+                            + n_z((cursor_ray.origin.z + t * cursor_ray.direction.z) - z_0)
+                            = 0
 
-                                n_x * cursor_ray.origin.x + n_x * t * cursor_ray.direction.x - n_x * x_0
-                                + n_y * cursor_ray.origin.y + n_y * t * cursor_ray.direction.y - n_y * y_0
-                                + n_z * cursor_ray.origin.z + n_z * t * cursor_ray.direction.z - n_z * z_0
-                                = 0
+                            n_x * cursor_ray.origin.x + n_x * t * cursor_ray.direction.x - n_x * x_0
+                            + n_y * cursor_ray.origin.y + n_y * t * cursor_ray.direction.y - n_y * y_0
+                            + n_z * cursor_ray.origin.z + n_z * t * cursor_ray.direction.z - n_z * z_0
+                            = 0
 
-                                n_x * t * cursor_ray.direction.x
-                                + n_y * t * cursor_ray.direction.y
-                                + n_z * t * cursor_ray.direction.z
-                                =
-                                  -n_x * cursor_ray.origin.x
-                                  + n_x * x_0
-                                  - n_y * cursor_ray.origin.y
-                                  + n_y * y_0
-                                  - n_z * cursor_ray.origin.z
-                                  + n_z * z_0
+                            n_x * t * cursor_ray.direction.x
+                            + n_y * t * cursor_ray.direction.y
+                            + n_z * t * cursor_ray.direction.z
+                            =
+                              -n_x * cursor_ray.origin.x
+                              + n_x * x_0
+                              - n_y * cursor_ray.origin.y
+                              + n_y * y_0
+                              - n_z * cursor_ray.origin.z
+                              + n_z * z_0
 
-                                t * (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
-                                =
-                                  -n_x * cursor_ray.origin.x
-                                  + n_x * x_0
-                                  - n_y * cursor_ray.origin.y
-                                  + n_y * y_0
-                                  - n_z * cursor_ray.origin.z
-                                  + n_z * z_0
+                            t * (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+                            =
+                              -n_x * cursor_ray.origin.x
+                              + n_x * x_0
+                              - n_y * cursor_ray.origin.y
+                              + n_y * y_0
+                              - n_z * cursor_ray.origin.z
+                              + n_z * z_0
 
-                                t = (
-                                  -n_x * cursor_ray.origin.x
-                                  + n_x * x_0
-                                  - n_y * cursor_ray.origin.y
-                                  + n_y * y_0
-                                  - n_z * cursor_ray.origin.z
-                                  + n_z * z_0
-                                ) /
-                                  (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+                            t = (
+                              -n_x * cursor_ray.origin.x
+                              + n_x * x_0
+                              - n_y * cursor_ray.origin.y
+                              + n_y * y_0
+                              - n_z * cursor_ray.origin.z
+                              + n_z * z_0
+                            ) /
+                              (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
 
-                                t = (
-                                  n_x * (-cursor_ray.origin.x + x_0)
-                                  + n_y * (-cursor_ray.origin.y + y_0)
-                                  + n_z * (-cursor_ray.origin.z + z_0)
-                                ) /
-                                  (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+                            t = (
+                              n_x * (-cursor_ray.origin.x + x_0)
+                              + n_y * (-cursor_ray.origin.y + y_0)
+                              + n_z * (-cursor_ray.origin.z + z_0)
+                            ) /
+                              (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
 
-                                t = (
-                                  n_x * (-cursor_ray.origin.x + x_0)
-                                  + n_y * (-cursor_ray.origin.y + y_0)
-                                  + n_z * (-cursor_ray.origin.z + z_0)
-                                ) /
-                                  n.dot(cursor_ray.direction)
+                            t = (
+                              n_x * (-cursor_ray.origin.x + x_0)
+                              + n_y * (-cursor_ray.origin.y + y_0)
+                              + n_z * (-cursor_ray.origin.z + z_0)
+                            ) /
+                              n.dot(cursor_ray.direction)
 
-                                t =
-                                  n.dot((-cursor_ray.origin.x + x_0, -cursor_ray.origin.y + y_0, -cursor_ray.origin.z + z_0))
-                                  / n.dot(cursor_ray.direction)
+                            t =
+                              n.dot((-cursor_ray.origin.x + x_0, -cursor_ray.origin.y + y_0, -cursor_ray.origin.z + z_0))
+                              / n.dot(cursor_ray.direction)
 
-                                t = n.dot(-cursor_ray.origin + (x_0, y_0, z_0)) / n.dot(cursor_ray.direction)
+                            t = n.dot(-cursor_ray.origin + (x_0, y_0, z_0)) / n.dot(cursor_ray.direction)
 
-                                t = n.dot((x_0, y_0, z_0) - cursor_ray.origin) / n.dot(cursor_ray.direction)
+                            t = n.dot((x_0, y_0, z_0) - cursor_ray.origin) / n.dot(cursor_ray.direction)
 
-                                `t` is undefined when `n.dot(cursor_ray.direction) = 0` because in that case
-                                `cursor_ray.direction` lies parallel to the plane (perpendicular to `n`). If `cursor_ray.origin`
-                                lies on the plan then `t` has infinite solutions (the ray lies in the plain), otherwise
-                                `t` has no solutions.
-                                ```
-                                */
+                            `t` is undefined when `n.dot(cursor_ray.direction) = 0` because in that case
+                            `cursor_ray.direction` lies parallel to the plane (perpendicular to `n`). If `cursor_ray.origin`
+                            lies on the plan then `t` has infinite solutions (the ray lies in the plain), otherwise
+                            `t` has no solutions.
+                            ```
+                            */
 
-                                let end_t = {
-                                    let t_denominator =
-                                        center_ray.direction.dot(cursor_ray.direction);
-                                    if t_denominator != 0.0 {
-                                        let t = center_ray
-                                            .direction
-                                            .dot(moving.intersection_point - cursor_ray.origin)
-                                            / t_denominator;
+                            let end_t = {
+                                let t_denominator = center_ray.direction.dot(cursor_ray.direction);
+                                if t_denominator != 0.0 {
+                                    let t = center_ray
+                                        .direction
+                                        .dot(moving.intersection_point - cursor_ray.origin)
+                                        / t_denominator;
 
-                                        if t >= 0.0 {
-                                            Some(t)
-                                        } else {
-                                            None
-                                        }
+                                    if t >= 0.0 {
+                                        Some(t)
                                     } else {
                                         None
                                     }
-                                };
+                                } else {
+                                    None
+                                }
+                            };
 
-                                if let Some(end_t) = end_t {
-                                    let translation =
-                                        cursor_ray.at(end_t) - moving.intersection_point;
-                                    moving.intersection_point += translation;
-                                    transform.translation += translation;
+                            if let Some(end_t) = end_t {
+                                let translation = cursor_ray.at(end_t) - moving.intersection_point;
+
+                                moving.intersection_point += translation;
+
+                                for (highlight, mut transform) in &mut transform_query {
+                                    if let Highlight::Selected = highlight {
+                                        transform.translation += translation;
+                                    }
                                 }
                             }
                         }
