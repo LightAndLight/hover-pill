@@ -172,6 +172,45 @@ fn prepare_wireframes(
     }
 }
 
+pub struct SetColorBindGroup<const I: usize>;
+
+impl<const I: usize> EntityRenderCommand for SetColorBindGroup<I> {
+    type Param = (
+        SRes<ColoredWireframeBindGroup>,
+        SQuery<Read<WireframeColorDynamicUniformIndex>>,
+    );
+
+    #[inline]
+    fn render<'w>(
+        _view: Entity,
+        item: Entity,
+        (colored_wireframe_bind_group, query): SystemParamItem<'w, '_, Self::Param>,
+        pass: &mut TrackedRenderPass<'w>,
+    ) -> RenderCommandResult {
+        let wireframe_color_dynamic_uniform_index = query.get(item).unwrap();
+
+        trace!(
+            "wireframe_color_dynamic_uniform_index: {:?}",
+            wireframe_color_dynamic_uniform_index.value
+        );
+        pass.set_bind_group(
+            I,
+            &colored_wireframe_bind_group.into_inner().value,
+            &[wireframe_color_dynamic_uniform_index.value],
+        );
+
+        RenderCommandResult::Success
+    }
+}
+
+type DrawWireframes = (
+    SetItemPipeline,
+    SetMeshViewBindGroup<0>,
+    SetMeshBindGroup<1>,
+    SetColorBindGroup<2>,
+    DrawMesh,
+);
+
 #[allow(clippy::too_many_arguments)]
 fn queue_wireframes(
     opaque_3d_draw_functions: Res<DrawFunctions<Opaque3d>>,
@@ -201,19 +240,22 @@ fn queue_wireframes(
                 if let Some(mesh) = render_meshes.get(mesh_handle) {
                     let key = msaa_key
                         | MeshPipelineKey::from_primitive_topology(mesh.primitive_topology);
-                    let pipeline_id = pipelines.specialize(
+
+                    let specialize_result = pipelines.specialize(
                         &mut pipeline_cache,
                         &wireframe_pipeline,
                         key,
                         &mesh.layout,
                     );
-                    let pipeline_id = match pipeline_id {
+
+                    let pipeline_id = match specialize_result {
                         Ok(id) => id,
                         Err(err) => {
                             error!("{}", err);
                             return;
                         }
                     };
+
                     opaque_phase.add(Opaque3d {
                         entity,
                         pipeline: pipeline_id,
@@ -259,42 +301,3 @@ impl Plugin for ColoredWireframePlugin {
         }
     }
 }
-
-pub struct SetColorBindGroup<const I: usize>;
-
-impl<const I: usize> EntityRenderCommand for SetColorBindGroup<I> {
-    type Param = (
-        SRes<ColoredWireframeBindGroup>,
-        SQuery<Read<WireframeColorDynamicUniformIndex>>,
-    );
-
-    #[inline]
-    fn render<'w>(
-        _view: Entity,
-        item: Entity,
-        (colored_wireframe_bind_group, query): SystemParamItem<'w, '_, Self::Param>,
-        pass: &mut TrackedRenderPass<'w>,
-    ) -> RenderCommandResult {
-        let wireframe_color_dynamic_uniform_index = query.get(item).unwrap();
-
-        trace!(
-            "wireframe_color_dynamic_uniform_index: {:?}",
-            wireframe_color_dynamic_uniform_index.value
-        );
-        pass.set_bind_group(
-            I,
-            &colored_wireframe_bind_group.into_inner().value,
-            &[wireframe_color_dynamic_uniform_index.value],
-        );
-
-        RenderCommandResult::Success
-    }
-}
-
-type DrawWireframes = (
-    SetItemPipeline,
-    SetMeshViewBindGroup<0>,
-    SetMeshBindGroup<1>,
-    SetColorBindGroup<2>,
-    DrawMesh,
-);
