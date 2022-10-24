@@ -143,7 +143,7 @@ fn prepare_wireframes(
 
         trace!("entity {:?} has color_index {:?}", entity, color_index);
         commands
-            .get_or_spawn(entity)
+            .entity(entity)
             .insert(WireframeColorDynamicUniformIndex { value: color_index });
     }
 
