@@ -104,8 +104,8 @@ impl SpecializedMeshPipeline for ColoredWireframePipeline {
 }
 
 #[derive(Component)]
-pub struct ColoredWireframeRender {
-    color_index: u32,
+pub struct WireframeColorDynamicUniformIndex {
+    value: u32,
 }
 
 fn extract_wireframes(mut commands: Commands, query: Extract<Query<(Entity, &ColoredWireframe)>>) {
@@ -116,7 +116,7 @@ fn extract_wireframes(mut commands: Commands, query: Extract<Query<(Entity, &Col
 
 #[derive(Default)]
 struct WireframeColorUniform {
-    uniform: DynamicUniformBuffer<Color>,
+    buffer: DynamicUniformBuffer<Color>,
 }
 
 pub struct ColoredWireframeBindGroup {
@@ -131,19 +131,19 @@ fn prepare_wireframes(
     query: Query<(Entity, &ColoredWireframe)>,
     mut color_uniform: ResMut<WireframeColorUniform>,
 ) {
-    color_uniform.uniform.clear();
+    color_uniform.buffer.clear();
 
     for (entity, colored_wireframe) in &query {
-        let color_index = color_uniform.uniform.push(colored_wireframe.color);
+        let color_index = color_uniform.buffer.push(colored_wireframe.color);
 
         trace!("entity {:?} has color_index {:?}", entity, color_index);
         commands
             .get_or_spawn(entity)
-            .insert(ColoredWireframeRender { color_index });
+            .insert(WireframeColorDynamicUniformIndex { value: color_index });
     }
 
     color_uniform
-        .uniform
+        .buffer
         .write_buffer(&render_device, &render_queue);
 
     /*
@@ -153,7 +153,7 @@ fn prepare_wireframes(
     has allocated a new buffer or reused the old one. It reallocates when the number
     of items exceed's the buffer's capacity.
     */
-    if let Some(resource) = color_uniform.uniform.binding() {
+    if let Some(resource) = color_uniform.buffer.binding() {
         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[BindGroupEntry {
                 binding: 0,
@@ -177,7 +177,7 @@ fn queue_wireframes(
     msaa: Res<Msaa>,
     material_meshes_query: Query<
         (Entity, &Handle<Mesh>, &MeshUniform),
-        With<ColoredWireframeRender>,
+        With<WireframeColorDynamicUniformIndex>,
     >,
     mut views: Query<(&ExtractedView, &VisibleEntities, &mut RenderPhase<Opaque3d>)>,
 ) {
@@ -260,7 +260,7 @@ pub struct SetColorBindGroup<const I: usize>;
 impl<const I: usize> EntityRenderCommand for SetColorBindGroup<I> {
     type Param = (
         SRes<ColoredWireframeBindGroup>,
-        SQuery<Read<ColoredWireframeRender>>,
+        SQuery<Read<WireframeColorDynamicUniformIndex>>,
     );
 
     #[inline]
@@ -270,13 +270,16 @@ impl<const I: usize> EntityRenderCommand for SetColorBindGroup<I> {
         (colored_wireframe_bind_group, query): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let colored_wireframe_render = query.get(item).unwrap();
+        let wireframe_color_dynamic_uniform_index = query.get(item).unwrap();
 
-        trace!("color_index: {:?}", colored_wireframe_render.color_index);
+        trace!(
+            "wireframe_color_dynamic_uniform_index: {:?}",
+            wireframe_color_dynamic_uniform_index.value
+        );
         pass.set_bind_group(
             I,
             &colored_wireframe_bind_group.into_inner().value,
-            &[colored_wireframe_render.color_index],
+            &[wireframe_color_dynamic_uniform_index.value],
         );
 
         RenderCommandResult::Success
