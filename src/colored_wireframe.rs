@@ -225,7 +225,7 @@ fn queue_wireframes(
     >,
     mut views: Query<(&ExtractedView, &VisibleEntities, &mut RenderPhase<Opaque3d>)>,
 ) {
-    let draw_custom = opaque_3d_draw_functions
+    let draw_function = opaque_3d_draw_functions
         .read()
         .get_id::<DrawWireframes>()
         .unwrap();
@@ -248,7 +248,7 @@ fn queue_wireframes(
                         &mesh.layout,
                     );
 
-                    let pipeline_id = match specialize_result {
+                    let pipeline = match specialize_result {
                         Ok(id) => id,
                         Err(err) => {
                             error!("{}", err);
@@ -258,8 +258,8 @@ fn queue_wireframes(
 
                     opaque_phase.add(Opaque3d {
                         entity,
-                        pipeline: pipeline_id,
-                        draw_function: draw_custom,
+                        pipeline,
+                        draw_function,
                         distance: rangefinder.distance(&mesh_uniform.transform),
                     });
                 }
