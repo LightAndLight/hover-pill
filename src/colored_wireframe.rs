@@ -128,7 +128,6 @@ fn prepare_wireframes(
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     pipeline: Res<ColoredWireframePipeline>,
-    bind_group: Option<Res<ColoredWireframeBindGroup>>,
     query: Query<(Entity, &ColoredWireframe)>,
     mut color_uniform: ResMut<WireframeColorUniform>,
 ) {
@@ -137,31 +136,35 @@ fn prepare_wireframes(
     for (entity, colored_wireframe) in &query {
         let color_index = color_uniform.uniform.push(colored_wireframe.color);
 
+        trace!("entity {:?} has color_index {:?}", entity, color_index);
         commands
             .get_or_spawn(entity)
-            .insert(ColoredWireframeRender {
-                color_index: color_index as u32,
-            });
+            .insert(ColoredWireframeRender { color_index });
     }
 
     color_uniform
         .uniform
         .write_buffer(&render_device, &render_queue);
 
-    if bind_group.is_none() {
-        if let Some(resource) = color_uniform.uniform.binding() {
-            let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-                entries: &[BindGroupEntry {
-                    binding: 0,
-                    resource,
-                }],
-                label: Some("colored_wireframe_bind_group"),
-                layout: &pipeline.bind_group_layout,
-            });
+    /*
+    Is it costly to re-create the `BindGroup` like this?
 
-            commands.insert_resource(ColoredWireframeBindGroup { value: bind_group });
-        }
-    };
+    To avoid re-creation, I'd need to know whether `DynamicUniformBuffer::write_buffer`
+    has allocated a new buffer or reused the old one. It reallocates when the number
+    of items exceed's the buffer's capacity.
+    */
+    if let Some(resource) = color_uniform.uniform.binding() {
+        let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource,
+            }],
+            label: Some("colored_wireframe_bind_group"),
+            layout: &pipeline.bind_group_layout,
+        });
+
+        commands.insert_resource(ColoredWireframeBindGroup { value: bind_group });
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -268,11 +271,14 @@ impl<const I: usize> EntityRenderCommand for SetColorBindGroup<I> {
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
         let colored_wireframe_render = query.get(item).unwrap();
+
+        trace!("color_index: {:?}", colored_wireframe_render.color_index);
         pass.set_bind_group(
             I,
             &colored_wireframe_bind_group.into_inner().value,
             &[colored_wireframe_render.color_index],
         );
+
         RenderCommandResult::Success
     }
 }
