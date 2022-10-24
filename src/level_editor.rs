@@ -673,10 +673,10 @@ fn handle_delete(
     mut commands: Commands,
     keycodes: Res<Input<KeyCode>>,
     level_editor: Option<ResMut<LevelEditor>>,
-    rapier_context: Res<RapierContext>,
-    windows: Res<Windows>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut level_item_query: Query<&mut LevelItem>,
+    mut params: ParamSet<(
+        Query<(Entity, &Highlight, &LevelItem)>,
+        Query<&mut LevelItem>,
+    )>,
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
@@ -689,25 +689,15 @@ fn handle_delete(
             if keycodes.just_pressed(KeyCode::Delete) {
                 debug!("delete pressed");
 
-                let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
+                let mut deleted_level_item_indices = Vec::new();
 
-                let cursor_position = windows.get_primary().unwrap().cursor_position().unwrap();
-
-                let cursor_ray =
-                    screen_point_to_world(camera, camera_global_transform, cursor_position);
-
-                let intersection = closest_intersection(
-                    rapier_context.as_ref(),
-                    camera_global_transform.translation(),
-                    cursor_ray,
-                );
-
-                if let Some((entity, _)) = intersection {
-                    debug!("delete candidate: {:?}", entity);
-
-                    if let Ok(deleted_level_item) = level_item_query.get(entity) {
+                let highlight_query = params.p0();
+                for (entity, highlight, deleted_level_item) in &highlight_query {
+                    if let Highlight::Selected = highlight {
                         let deleted_level_item_index = deleted_level_item.index;
-                        assert!(
+                        deleted_level_item_indices.push(deleted_level_item_index);
+
+                        debug_assert!(
                             entities.level_items[deleted_level_item_index] == entity,
                             "wrong entity at index {:?}. expected {:?}, got {:?}",
                             deleted_level_item_index,
@@ -719,11 +709,18 @@ fn handle_delete(
                         entities.level_items.remove(deleted_level_item.index);
 
                         commands.entity(entity).despawn_recursive();
+                    }
+                }
 
-                        for mut level_item in &mut level_item_query {
-                            if level_item.index > deleted_level_item_index {
-                                level_item.index -= 1;
-                            }
+                /*
+                This could be slow when there are many level objects - iterating
+                through all level object for each deleted object.
+                */
+                let mut level_item_query = params.p1();
+                for deleted_level_item_index in deleted_level_item_indices {
+                    for mut level_item in &mut level_item_query {
+                        if level_item.index > deleted_level_item_index {
+                            level_item.index -= 1;
                         }
                     }
                 }
