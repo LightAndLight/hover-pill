@@ -35,7 +35,6 @@ use bevy::{
 #[derive(Debug, Clone, Default, ExtractResource, Reflect)]
 #[reflect(Resource)]
 pub struct ColoredWireframeConfig {
-    // TODO: make this do something?
     pub enabled: bool,
 }
 
@@ -108,9 +107,15 @@ pub struct WireframeColorDynamicUniformIndex {
     value: u32,
 }
 
-fn extract_wireframes(mut commands: Commands, query: Extract<Query<(Entity, &ColoredWireframe)>>) {
-    for (entity, wireframe) in query.iter() {
-        commands.get_or_spawn(entity).insert(*wireframe);
+fn extract_wireframes(
+    mut commands: Commands,
+    config: Extract<Res<ColoredWireframeConfig>>,
+    query: Extract<Query<(Entity, &ColoredWireframe)>>,
+) {
+    if config.enabled {
+        for (entity, wireframe) in query.iter() {
+            commands.get_or_spawn(entity).insert(*wireframe);
+        }
     }
 }
 
