@@ -91,6 +91,28 @@ impl SpecializedMeshPipeline for ColoredWireframePipeline {
         descriptor.primitive.polygon_mode = PolygonMode::Line;
         descriptor.depth_stencil.as_mut().unwrap().bias.slope_scale = 1.0;
 
+        /*
+        Is this the best I can do?
+
+        It's possible that some of my [shader](render/wireframe.wgsl)'s imports could later
+        define `@group(2) @binding(0)`, which would break my shader.
+
+        I think that Bevy should treat bind group layouts as scoped to their shader, so that an
+        imported shader's bind group layout can't conflict with that of the importing shader.
+
+        I should be able to declare `@group(0) @binding(0)` even when importing a shader
+        that also declares `@group(0) @binding(0)`. I could bind resources to my shader
+        according to this local layout.
+
+        Then when Bevy preprocesses the shader, it creates the "global" bind group layout according
+        to the order of imports. If my only import defines `@group(0) @binding(0)` then I define
+        `@group(0) @binding(0)`, the preprocessor gives the import `@group(0) @binding(0)` and gives
+        my shader `@group(1) @binding(0)`.
+
+        `TrackedRenderPass` would need to work with this "bind group layout mapping". I call
+        `TrackedRenderPass::set_bind_group` with the "global" bind group index, but I should be
+        able to call it with the "local" index.
+        */
         debug_assert_eq!(descriptor.layout.as_ref().unwrap().len(), 2);
         descriptor
             .layout
