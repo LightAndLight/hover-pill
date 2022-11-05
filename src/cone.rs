@@ -1,5 +1,5 @@
 use bevy::{
-    prelude::{debug, Mesh, Quat, Vec3},
+    prelude::{Mesh, Quat, Vec3},
     render::{mesh::Indices, render_resource::PrimitiveTopology},
 };
 
@@ -60,8 +60,8 @@ impl From<Cone> for Mesh {
             index as u32
         };
 
-        let num_triangles = 3 * (cone.vertices + cone.vertices);
-        let mut indices: Vec<u32> = Vec::with_capacity(num_triangles as usize);
+        let num_triangles = cone.vertices + cone.vertices;
+        let mut indices: Vec<u32> = Vec::with_capacity(3 * num_triangles as usize);
         for i in 0..cone.vertices {
             // the cone is pointing in +Z, so the base triangles
             // are pointing away from the camera (back). Assuming CCW front-facing,

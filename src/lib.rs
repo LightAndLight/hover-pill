@@ -1,6 +1,9 @@
+pub mod arrow;
 pub mod camera;
 pub mod colored_wireframe;
+pub mod cone;
 pub mod controls;
+pub mod cylinder;
 pub mod fuel;
 pub mod fuel_ball;
 pub mod game;

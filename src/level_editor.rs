@@ -1,16 +1,20 @@
-use std::{fs::File, path::PathBuf};
+use std::{f32::consts::PI, fs::File, path::PathBuf};
 
 use bevy::{
     asset::AssetServerSettings,
     input::mouse::{MouseButtonInput, MouseMotion},
+    pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
 };
 use bevy_egui::EguiContext;
 use bevy_rapier3d::prelude::{Collider, QueryFilter, RapierContext, RayIntersection, Real};
 
 use crate::{
+    arrow,
     camera::Zoom,
     colored_wireframe::ColoredWireframe,
+    cone::Cone,
+    cylinder::Cylinder,
     level::{self, Level},
     player,
 };
@@ -109,6 +113,8 @@ fn handle_left_click(
     mut commands: Commands,
     mut level_editor: Option<ResMut<LevelEditor>>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     windows: Res<Windows>,
     rapier_context: Res<RapierContext>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
@@ -153,7 +159,22 @@ fn handle_left_click(
                                                 .insert(ColoredWireframe {
                                                     color: Color::GREEN,
                                                 })
-                                                .insert(Highlight::Selected);
+                                                .insert(Highlight::Selected).add_children(|parent| {
+                                                    // +Z
+                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * Vec3::Z) * Transform::identity());
+                                                    // -Z
+                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * -Vec3::Z) * Transform::from_rotation(Quat::from_rotation_x(PI)));
+                                                    
+                                                    // +Y
+                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * Vec3::Y) * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)));
+                                                    // -Y
+                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * -Vec3::Y) * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)));
+                                                   
+                                                    // +X
+                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * Vec3::X) * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)));
+                                                    // -X
+                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * -Vec3::X) * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)));
+                                                });
 
                                             Moving {
                                                 intersection_point: intersection.point,
@@ -263,6 +284,7 @@ fn screen_point_to_world(
         // x: (2.0 * screen_position.x - logical_width) / logical_width,
         // x: (2.0 * screen_position.x) / logical_width - logical_width / logical_width,
         x: 2.0 * screen_position.x / logical_width - 1.0,
+
         /*
         0.0 -> -1.0
         logical_height / 2 -> 0.0
