@@ -1,8 +1,14 @@
+use std::f32::consts::PI;
+
 use bevy::{
     ecs::system::EntityCommands,
     pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
     transform::TransformBundle,
+};
+use bevy_rapier3d::{
+    prelude::Collider,
+    rapier::prelude::{ColliderBuilder, SharedShape},
 };
 
 use crate::{cone::Cone, cylinder::Cylinder};
@@ -41,7 +47,14 @@ pub fn spawn_generic<'w: 'a, 's: 'a, 'a>(
                     ..default()
                 })
                 .insert(NotShadowCaster)
-                .insert(NotShadowReceiver);
+                .insert(NotShadowReceiver)
+                .with_children(|parent| {
+                    parent
+                        .spawn_bundle(TransformBundle::from(Transform::from_rotation(
+                            Quat::from_rotation_x(PI / 2.0),
+                        )))
+                        .insert(Collider::cylinder(cylinder_length / 2.0, radius));
+                });
 
             parent
                 .spawn_bundle(PbrBundle {
@@ -62,7 +75,15 @@ pub fn spawn_generic<'w: 'a, 's: 'a, 'a>(
                     ..default()
                 })
                 .insert(NotShadowCaster)
-                .insert(NotShadowReceiver);
+                .insert(NotShadowReceiver)
+                .with_children(|parent| {
+                    parent
+                        .spawn_bundle(TransformBundle::from(
+                            Transform::from_translation((cylinder_length - cone_height) * Vec3::Z)
+                                * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
+                        ))
+                        .insert(Collider::cone(cone_height / 2.0, cone_radius));
+                });
         })
         .id()
 }

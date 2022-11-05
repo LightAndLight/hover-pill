@@ -58,8 +58,7 @@ fn main() {
     };
 
     if cfg!(debug_assertions) {
-        app
-            // .add_plugin(RapierDebugRenderPlugin::default())
+        app.add_plugin(RapierDebugRenderPlugin::default())
             .add_system(display_collision_events);
     }
 
