@@ -33,7 +33,7 @@ impl CameraBundle {
                 transform: transform.looking_at(Vec3::Y, Vec3::Y),
                 ..default()
             },
-            atmosphere_camera: AtmosphereCamera(None),
+            atmosphere_camera: AtmosphereCamera::default(),
             zoom: Zoom,
             camera: Camera,
         }

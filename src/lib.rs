@@ -2,6 +2,7 @@ pub mod arrow;
 pub mod camera;
 pub mod colored_wireframe;
 pub mod cone;
+pub mod config;
 pub mod controls;
 pub mod cylinder;
 pub mod fuel;

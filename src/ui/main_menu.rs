@@ -29,21 +29,21 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
     };
 
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size {
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
                 },
-                flex_direction: FlexDirection::ColumnReverse,
+                flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 ..Default::default()
             },
-            color: Color::rgb(0.4, 0.7, 1.0).into(),
+            background_color: Color::rgb(0.4, 0.7, 1.0).into(),
             ..Default::default()
         })
         .with_children(|parent| {
-            parent.spawn_bundle(TextBundle {
+            parent.spawn(TextBundle {
                 style: Style {
                     margin: UiRect {
                         top: Val::Px(10.0),
@@ -56,7 +56,7 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
             });
 
             parent
-                .spawn_bundle(ButtonBundle {
+                .spawn(ButtonBundle {
                     style: Style {
                         padding: UiRect::all(Val::Px(10.0)),
                         margin,
@@ -65,7 +65,7 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
                     ..Default::default()
                 })
                 .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle::from_section(
+                    parent.spawn(TextBundle::from_section(
                         "Play",
                         TextStyle {
                             color: Color::BLACK,
@@ -79,7 +79,7 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
                 });
 
             parent
-                .spawn_bundle(ButtonBundle {
+                .spawn(ButtonBundle {
                     style: Style {
                         padding: UiRect::all(Val::Px(10.0)),
                         margin,
@@ -88,7 +88,7 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
                     ..Default::default()
                 })
                 .with_children(|parent| {
-                    parent.spawn_bundle(TextBundle::from_section(
+                    parent.spawn(TextBundle::from_section(
                         "Level Editor",
                         TextStyle {
                             color: Color::BLACK,

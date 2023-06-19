@@ -1,6 +1,7 @@
 use bevy::{
     input::{mouse::MouseButtonInput, ButtonState},
     prelude::*,
+    window::PrimaryWindow,
 };
 
 use crate::hover::HoverEvent;
@@ -89,22 +90,22 @@ fn handle_jump(keys: Res<Input<KeyCode>>, mut hover_event: EventWriter<HoverEven
 }
 
 fn handle_rotate(
-    mut windows: ResMut<Windows>,
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut query: Query<&mut Controlled>,
 ) {
     for mouse_button_event in mouse_button_events.iter() {
         if let MouseButton::Right = mouse_button_event.button {
-            let window = windows.primary_mut();
+            let mut window = windows.get_single_mut().unwrap();
             for mut controlled in query.iter_mut() {
                 match mouse_button_event.state {
                     ButtonState::Pressed => {
                         controlled.rotating = true;
-                        window.set_cursor_visibility(false);
+                        window.cursor.visible = false;
                     }
                     ButtonState::Released => {
                         controlled.rotating = false;
-                        window.set_cursor_visibility(true);
+                        window.cursor.visible = true;
                     }
                 };
             }

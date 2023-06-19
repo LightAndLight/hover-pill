@@ -68,7 +68,7 @@ fn refuel(
                 ball_query.get_mut(ball_entity),
             ) {
                 add_fuel(&mut fuel, refuel_ball.amount, &mut fuel_changed);
-                visibility.is_visible = false;
+                *visibility = Visibility::Hidden;
                 commands.entity(ball_entity).remove::<Collider>();
             }
         }

@@ -5,6 +5,7 @@ use bevy_rapier3d::prelude::*;
 use hover_pill::{
     camera::ZoomPlugin,
     colored_wireframe::{ColoredWireframeConfig, ColoredWireframePlugin},
+    config::Config,
     controls::ControlsPlugin,
     fuel::FuelPlugin,
     fuel_ball::FuelBallPlugin,
@@ -23,10 +24,6 @@ fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut ui: ResMut<UI>) {
-    if !cfg!(target_family = "wasm") {
-        asset_server.watch_for_changes().unwrap();
-    }
-
     ui::set(&mut commands, &mut ui, |commands| {
         ui::main_menu::create(&asset_server, commands)
     })
@@ -35,23 +32,31 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut ui: ResMut<
 fn main() {
     let mut app = App::new();
 
-    app.add_plugins(DefaultPlugins)
-        .add_plugin(ColoredWireframePlugin)
-        .insert_resource(ColoredWireframeConfig { enabled: true })
-        .add_plugin(EguiPlugin)
-        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugin(ui::button::ButtonPlugin)
-        .add_plugin(ControlsPlugin)
-        .add_plugin(ZoomPlugin)
-        .add_plugin(UiPlugin)
-        .add_plugin(LevelPlugin)
-        .add_plugin(FuelPlugin)
-        .add_plugin(HoverPlugin)
-        .add_plugin(FuelBallPlugin)
-        .add_plugin(PlayerPlugin)
-        .add_plugin(GamePlugin)
-        .add_plugin(LevelEditorPlugin)
-        .add_startup_system(setup);
+    let config = Config {
+        asset_dir: "assets".into(),
+    };
+
+    app.add_plugins(DefaultPlugins.set(AssetPlugin {
+        watch_for_changes: true,
+        asset_folder: config.asset_dir.clone(),
+    }))
+    .insert_resource(config)
+    .add_plugin(ColoredWireframePlugin)
+    .insert_resource(ColoredWireframeConfig { enabled: true })
+    .add_plugin(EguiPlugin)
+    .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
+    .add_plugin(ui::button::ButtonPlugin)
+    .add_plugin(ControlsPlugin)
+    .add_plugin(ZoomPlugin)
+    .add_plugin(UiPlugin)
+    .add_plugin(LevelPlugin)
+    .add_plugin(FuelPlugin)
+    .add_plugin(HoverPlugin)
+    .add_plugin(FuelBallPlugin)
+    .add_plugin(PlayerPlugin)
+    .add_plugin(GamePlugin)
+    .add_plugin(LevelEditorPlugin)
+    .add_startup_system(setup);
 
     if !cfg!(target_family = "wasm") {
         app.add_plugin(AtmospherePlugin);

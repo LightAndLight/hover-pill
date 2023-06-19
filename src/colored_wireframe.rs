@@ -2,7 +2,7 @@ use bevy::{
     asset::load_internal_asset,
     core_pipeline::core_3d::Opaque3d,
     ecs::system::{
-        lifetimeless::{Read, SQuery, SRes},
+        lifetimeless::{Read, SRes},
         SystemParamItem,
     },
     pbr::{
@@ -16,8 +16,8 @@ use bevy::{
         mesh::MeshVertexBufferLayout,
         render_asset::RenderAssets,
         render_phase::{
-            AddRenderCommand, DrawFunctions, EntityRenderCommand, RenderCommandResult, RenderPhase,
-            SetItemPipeline, TrackedRenderPass,
+            AddRenderCommand, DrawFunctions, PhaseItem, RenderCommand, RenderCommandResult,
+            RenderPhase, SetItemPipeline, TrackedRenderPass,
         },
         render_resource::{
             BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
@@ -28,12 +28,13 @@ use bevy::{
         },
         renderer::{RenderDevice, RenderQueue},
         view::{ExtractedView, VisibleEntities},
-        Extract, RenderApp, RenderStage,
+        Extract, RenderApp, RenderSet,
     },
 };
 
 #[derive(Debug, Clone, Default, ExtractResource, Reflect)]
 #[reflect(Resource)]
+#[derive(Resource)]
 pub struct ColoredWireframeConfig {
     pub enabled: bool,
 }
@@ -47,6 +48,7 @@ pub struct ColoredWireframe {
 pub const WIREFRAME_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 327186210400322572);
 
+#[derive(Resource)]
 struct ColoredWireframePipeline {
     mesh_pipeline: MeshPipeline,
     shader: Handle<Shader>,
@@ -113,12 +115,8 @@ impl SpecializedMeshPipeline for ColoredWireframePipeline {
         `TrackedRenderPass::set_bind_group` with the "global" bind group index, but I should be
         able to call it with the "local" index.
         */
-        debug_assert_eq!(descriptor.layout.as_ref().unwrap().len(), 2);
-        descriptor
-            .layout
-            .as_mut()
-            .unwrap()
-            .push(self.bind_group_layout.clone());
+        debug_assert_eq!(descriptor.layout.len(), 2);
+        descriptor.layout.push(self.bind_group_layout.clone());
 
         Ok(descriptor)
     }
@@ -141,11 +139,12 @@ fn extract_wireframes(
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct WireframeColorUniform {
     buffer: DynamicUniformBuffer<Color>,
 }
 
+#[derive(Resource)]
 pub struct ColoredWireframeBindGroup {
     value: BindGroup,
 }
@@ -196,21 +195,19 @@ fn prepare_wireframes(
 
 pub struct SetColorBindGroup<const I: usize>;
 
-impl<const I: usize> EntityRenderCommand for SetColorBindGroup<I> {
-    type Param = (
-        SRes<ColoredWireframeBindGroup>,
-        SQuery<Read<WireframeColorDynamicUniformIndex>>,
-    );
+impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetColorBindGroup<I> {
+    type Param = SRes<ColoredWireframeBindGroup>;
+    type ViewWorldQuery = ();
+    type ItemWorldQuery = Read<WireframeColorDynamicUniformIndex>;
 
     #[inline]
     fn render<'w>(
-        _view: Entity,
-        item: Entity,
-        (colored_wireframe_bind_group, query): SystemParamItem<'w, '_, Self::Param>,
+        _item: &P,
+        _view: (),
+        wireframe_color_dynamic_uniform_index: &WireframeColorDynamicUniformIndex,
+        colored_wireframe_bind_group: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
-        let wireframe_color_dynamic_uniform_index = query.get(item).unwrap();
-
         trace!(
             "wireframe_color_dynamic_uniform_index: {:?}",
             wireframe_color_dynamic_uniform_index.value
@@ -239,7 +236,7 @@ fn queue_wireframes(
     render_meshes: Res<RenderAssets<Mesh>>,
     wireframe_pipeline: Res<ColoredWireframePipeline>,
     mut pipelines: ResMut<SpecializedMeshPipelines<ColoredWireframePipeline>>,
-    mut pipeline_cache: ResMut<PipelineCache>,
+    pipeline_cache: Res<PipelineCache>,
     msaa: Res<Msaa>,
     material_meshes_query: Query<
         (Entity, &Handle<Mesh>, &MeshUniform),
@@ -252,7 +249,7 @@ fn queue_wireframes(
         .get_id::<DrawWireframes>()
         .unwrap();
 
-    let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples);
+    let msaa_key = MeshPipelineKey::from_msaa_samples(msaa.samples());
 
     for (view, visible_entities, mut opaque_phase) in &mut views {
         let rangefinder = view.rangefinder3d();
@@ -264,7 +261,7 @@ fn queue_wireframes(
                         | MeshPipelineKey::from_primitive_topology(mesh.primitive_topology);
 
                     let specialize_result = pipelines.specialize(
-                        &mut pipeline_cache,
+                        &pipeline_cache,
                         &wireframe_pipeline,
                         key,
                         &mesh.layout,
@@ -317,9 +314,9 @@ impl Plugin for ColoredWireframePlugin {
                 .init_resource::<ColoredWireframePipeline>()
                 .init_resource::<SpecializedMeshPipelines<ColoredWireframePipeline>>()
                 .init_resource::<WireframeColorUniform>()
-                .add_system_to_stage(RenderStage::Extract, extract_wireframes)
-                .add_system_to_stage(RenderStage::Prepare, prepare_wireframes)
-                .add_system_to_stage(RenderStage::Queue, queue_wireframes);
+                .add_system(extract_wireframes.in_schedule(ExtractSchedule))
+                .add_system(prepare_wireframes.in_set(RenderSet::Prepare))
+                .add_system(queue_wireframes.in_set(RenderSet::Queue));
         }
     }
 }

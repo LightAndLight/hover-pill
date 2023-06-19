@@ -1,24 +1,23 @@
 use std::{f32::consts::PI, fs::File, path::PathBuf};
 
 use bevy::{
-    asset::AssetServerSettings,
     input::mouse::{MouseButtonInput, MouseMotion},
-    pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
+    window::PrimaryWindow,
 };
-use bevy_egui::EguiContext;
+use bevy_egui::{egui, EguiContexts};
 use bevy_rapier3d::prelude::{Collider, QueryFilter, RapierContext, RayIntersection, Real};
 
 use crate::{
     arrow,
     camera::Zoom,
     colored_wireframe::ColoredWireframe,
-    cone::Cone,
-    cylinder::Cylinder,
+    config::Config,
     level::{self, Level},
     player,
 };
 
+#[derive(Resource)]
 pub enum LevelEditor {
     Empty,
     Loading {
@@ -115,7 +114,7 @@ fn handle_left_click(
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    windows: Res<Windows>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     rapier_context: Res<RapierContext>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     highlight_query: Query<Entity, With<Highlight>>,
@@ -131,55 +130,15 @@ fn handle_left_click(
                                     *panning = true;
                                 }
                                 Mode::Object { moving } => {
-                                    let cursor_position =
-                                        windows.get_primary().unwrap().cursor_position().unwrap();
-                                    let (camera, transform) = camera_query.iter().next().unwrap();
-
-                                    let ray =
-                                        screen_point_to_world(camera, transform, cursor_position);
-
-                                    *moving = closest_intersection(
-                                        rapier_context.as_ref(),
-                                        transform.translation(),
-                                        ray,
-                                    )
-                                    .map(
-                                        |(entity, intersection)| {
-                                            for entity in &highlight_query {
-                                                trace!("removing Highlight and ColoredWireframe for {:?}", entity);
-                                                commands
-                                                    .entity(entity)
-                                                    .remove::<Highlight>()
-                                                    .remove::<ColoredWireframe>();
-                                            }
-
-                                            trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
-                                            commands
-                                                .entity(entity)
-                                                .insert(ColoredWireframe {
-                                                    color: Color::GREEN,
-                                                })
-                                                .insert(Highlight::Selected).add_children(|parent| {
-                                                    // +Z
-                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * Vec3::Z) * Transform::identity());
-                                                    // -Z
-                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * -Vec3::Z) * Transform::from_rotation(Quat::from_rotation_x(PI)));
-                                                    
-                                                    // +Y
-                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * Vec3::Y) * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)));
-                                                    // -Y
-                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * -Vec3::Y) * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)));
-                                                   
-                                                    // +X
-                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * Vec3::X) * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)));
-                                                    // -X
-                                                    arrow::spawn_child(parent, &mut meshes, &mut materials, 0.2, 2.0, Transform::from_translation(2.0 * -Vec3::X) * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)));
-                                                });
-
-                                            Moving {
-                                                intersection_point: intersection.point,
-                                            }
-                                        },
+                                    move_object(
+                                        &windows,
+                                        &camera_query,
+                                        moving,
+                                        &rapier_context,
+                                        &highlight_query,
+                                        &mut commands,
+                                        &mut meshes,
+                                        &mut materials,
                                     );
                                 }
                             }
@@ -203,6 +162,108 @@ fn handle_left_click(
             }
         }
     }
+}
+
+// This is kind whacky: I had to factor out this function because `rustfmt` refused to format things properly.
+fn move_object(
+    windows: &Query<&Window, With<PrimaryWindow>>,
+    camera_query: &Query<(&Camera, &GlobalTransform)>,
+    moving: &mut Option<Moving>,
+    rapier_context: &Res<RapierContext>,
+    highlight_query: &Query<Entity, With<Highlight>>,
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+) {
+    let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
+    let (camera, transform) = camera_query.iter().next().unwrap();
+
+    let ray = screen_point_to_world(camera, transform, cursor_position);
+
+    *moving = closest_intersection(rapier_context.as_ref(), transform.translation(), ray).map(
+        |(entity, intersection)| {
+            for entity in highlight_query {
+                trace!("removing Highlight and ColoredWireframe for {:?}", entity);
+                commands
+                    .entity(entity)
+                    .remove::<Highlight>()
+                    .remove::<ColoredWireframe>();
+            }
+
+            trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
+            commands
+                .entity(entity)
+                .insert(ColoredWireframe {
+                    color: Color::GREEN,
+                })
+                .insert(Highlight::Selected)
+                .with_children(|parent| {
+                    // +Z
+                    arrow::spawn(
+                        parent,
+                        meshes,
+                        materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * Vec3::Z) * Transform::IDENTITY,
+                    );
+                    // -Z
+                    arrow::spawn(
+                        parent,
+                        meshes,
+                        materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * -Vec3::Z)
+                            * Transform::from_rotation(Quat::from_rotation_x(PI)),
+                    );
+                    // +Y
+                    arrow::spawn(
+                        parent,
+                        meshes,
+                        materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * Vec3::Y)
+                            * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
+                    );
+                    // -Y
+                    arrow::spawn(
+                        parent,
+                        meshes,
+                        materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * -Vec3::Y)
+                            * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
+                    );
+                    // +X
+                    arrow::spawn(
+                        parent,
+                        meshes,
+                        materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * Vec3::X)
+                            * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
+                    );
+                    // -X
+                    arrow::spawn(
+                        parent,
+                        meshes,
+                        materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * -Vec3::X)
+                            * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
+                    );
+                });
+
+            Moving {
+                intersection_point: intersection.point,
+            }
+        },
+    );
 }
 
 #[derive(Component)]
@@ -613,7 +674,7 @@ fn handle_spawn(
     mut materials: ResMut<Assets<StandardMaterial>>,
     keycodes: Res<Input<KeyCode>>,
     level_editor: Option<ResMut<LevelEditor>>,
-    windows: Res<Windows>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     pan_query: Query<&Transform, With<Pan>>,
 ) {
@@ -629,7 +690,7 @@ fn handle_spawn(
                 let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
                 let pan_transform = pan_query.iter().next().unwrap();
 
-                let cursor_position = windows.get_primary().unwrap().cursor_position().unwrap();
+                let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
 
                 let cursor_ray =
                     screen_point_to_world(camera, camera_global_transform, cursor_position);
@@ -762,16 +823,14 @@ struct SaveEvent {
 
 fn handle_save_event(
     mut save_event: EventReader<SaveEvent>,
-    asset_server_settings: Res<AssetServerSettings>,
+    config: Res<Config>,
     level_editor: Option<ResMut<LevelEditor>>,
 ) {
     if let Some(level_editor) = level_editor {
         if let LevelEditor::Loaded { level, .. } = level_editor.as_ref() {
             for SaveEvent { path } in save_event.iter() {
-                let file = File::create(
-                    PathBuf::from(asset_server_settings.asset_folder.clone()).join(path),
-                )
-                .unwrap();
+                let file =
+                    File::create(PathBuf::from(config.asset_dir.clone()).join(path)).unwrap();
                 serde_json::to_writer_pretty(file, level).unwrap();
             }
         }
@@ -780,7 +839,7 @@ fn handle_save_event(
 
 fn create_ui(
     level_editor: Option<ResMut<LevelEditor>>,
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_contexts: EguiContexts,
     mut load_event: EventWriter<LoadEvent>,
     mut save_event: EventWriter<SaveEvent>,
     mut test_event: EventWriter<TestEvent>,
@@ -789,7 +848,7 @@ fn create_ui(
         egui::Window::new("Level Editor")
             .fixed_pos((10.0, 10.0))
             .resizable(false)
-            .show(egui_context.ctx_mut(), |ui| match level_editor.as_mut() {
+            .show(egui_contexts.ctx_mut(), |ui| match level_editor.as_mut() {
                 LevelEditor::Loaded {
                     path,
                     mode,
@@ -1028,13 +1087,13 @@ fn finish_loading(
 
 fn spawn_camera(commands: &mut Commands) -> Entity {
     commands
-        .spawn_bundle(TransformBundle {
-            local: Transform::identity().looking_at(Vec3::new(-5.0, -5.0, -5.0), Vec3::Y),
+        .spawn(TransformBundle {
+            local: Transform::IDENTITY.looking_at(Vec3::new(-5.0, -5.0, -5.0), Vec3::Y),
             ..Default::default()
         })
         .with_children(|parent| {
             parent
-                .spawn_bundle(Camera3dBundle {
+                .spawn(Camera3dBundle {
                     /*
                     [note: implicit camera direction]
 
@@ -1063,7 +1122,7 @@ fn spawn_player(
     level: &Level,
 ) -> Entity {
     commands
-        .spawn_bundle(PbrBundle {
+        .spawn(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
                 radius: player::CAPSULE_RADIUS,
                 depth: player::CAPSULE_DEPTH,

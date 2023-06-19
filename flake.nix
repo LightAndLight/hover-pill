@@ -35,6 +35,7 @@
                   "rustc"
                   "rust-src"
                   "rustfmt"
+                  "rust-analyzer"
                 ];
               })
 

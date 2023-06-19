@@ -25,7 +25,7 @@ pub fn spawn_player(
     let fuel = Fuel { value: 1.0 };
 
     let entity = commands
-        .spawn_bundle(PbrBundle {
+        .spawn(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
                 radius: CAPSULE_RADIUS,
                 depth: CAPSULE_DEPTH,
@@ -51,7 +51,7 @@ pub fn spawn_player(
         .insert(fuel)
         .insert(Hovering { value: false })
         .with_children(|parent| {
-            parent.spawn_bundle(CameraBundle::new(Transform::from_xyz(0.0, 4.0, -5.0)));
+            parent.spawn(CameraBundle::new(Transform::from_xyz(0.0, 4.0, -5.0)));
         })
         .id();
 

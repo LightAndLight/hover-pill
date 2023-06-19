@@ -17,23 +17,23 @@ pub fn display(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI)
         };
 
         parent
-            .spawn_bundle(NodeBundle {
+            .spawn(NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {
                         top: Val::Px(200.0),
                         ..Default::default()
                     },
-                    flex_direction: FlexDirection::ColumnReverse,
+                    flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Center,
                     ..Default::default()
                 },
-                color: Color::NONE.into(),
+                background_color: Color::NONE.into(),
                 ..Default::default()
             })
             .with_children(|parent| {
                 parent
-                    .spawn_bundle(NodeBundle {
+                    .spawn(NodeBundle {
                         style: Style {
                             position_type: PositionType::Absolute,
                             position: UiRect {
@@ -42,15 +42,15 @@ pub fn display(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI)
                             },
                             ..Default::default()
                         },
-                        color: Color::NONE.into(),
+                        background_color: Color::NONE.into(),
                         ..Default::default()
                     })
                     .with_children(|parent| {
-                        parent.spawn_bundle(TextBundle::from_section("complete!", style));
+                        parent.spawn(TextBundle::from_section("complete!", style));
                     });
 
                 parent
-                    .spawn_bundle(ButtonBundle {
+                    .spawn(ButtonBundle {
                         style: Style {
                             position_type: PositionType::Absolute,
                             position: UiRect {
@@ -60,11 +60,11 @@ pub fn display(asset_server: &AssetServer, commands: &mut Commands, ui: &mut UI)
                             padding: UiRect::all(Val::Px(10.0)),
                             ..Default::default()
                         },
-                        color: Color::WHITE.into(),
+                        background_color: Color::WHITE.into(),
                         ..Default::default()
                     })
                     .with_children(|parent| {
-                        parent.spawn_bundle(TextBundle::from_section(
+                        parent.spawn(TextBundle::from_section(
                             "next level",
                             TextStyle {
                                 font: asset_server.load("fonts/DejaVuSansMono.ttf"),

@@ -69,7 +69,9 @@ pub enum LevelItem {
     },
 }
 
+#[derive(Default, Resource)]
 pub enum CurrentLevel {
+    #[default]
     None,
     Loading(Handle<Level>),
     Loaded {
@@ -79,12 +81,6 @@ pub enum CurrentLevel {
         structure: Vec<Entity>,
         player: Entity,
     },
-}
-
-impl Default for CurrentLevel {
-    fn default() -> Self {
-        CurrentLevel::None
-    }
 }
 
 pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
@@ -125,19 +121,10 @@ pub fn create_world(
 ) -> Entities {
     let light = {
         commands
-            .spawn_bundle(DirectionalLightBundle {
+            .spawn(DirectionalLightBundle {
                 directional_light: DirectionalLight {
                     illuminance: 10000.0,
                     shadows_enabled: true,
-                    shadow_projection: OrthographicProjection {
-                        left: -50.0,
-                        right: 50.0,
-                        bottom: -50.0,
-                        top: 50.0,
-                        near: -50.0,
-                        far: 50.0,
-                        ..default()
-                    },
                     ..default()
                 },
                 transform: Transform::from_rotation(Quat::from_rotation_x(
@@ -170,13 +157,13 @@ pub fn create_world(
                 }
             },
             LevelItem::FuelBall { position } => commands
-                .spawn_bundle(FuelBallBundle::new(meshes, materials, *position))
+                .spawn(FuelBallBundle::new(meshes, materials, *position))
                 .id(),
             LevelItem::Light {
                 position,
                 intensity,
             } => commands
-                .spawn_bundle(PbrBundle {
+                .spawn(PbrBundle {
                     mesh: meshes.add(Mesh::from(shape::UVSphere {
                         radius: 0.1,
                         sectors: 20,
@@ -191,7 +178,7 @@ pub fn create_world(
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn_bundle(PointLightBundle {
+                    parent.spawn(PointLightBundle {
                         point_light: PointLight {
                             intensity: *intensity,
                             radius: 0.1,
@@ -216,10 +203,10 @@ pub fn spawn_wall_goal<'w, 's, 'a>(
     rotation: Quat,
     size: Vec2,
 ) -> EntityCommands<'w, 's, 'a> {
-    let mut entity_commands = commands.spawn_bundle(wall::WallBundle::new(
+    let mut entity_commands = commands.spawn(wall::WallBundle::new(
         meshes,
         materials,
-        Transform::identity()
+        Transform::IDENTITY
             .with_translation(position)
             .with_rotation(rotation),
         size,
@@ -239,10 +226,10 @@ pub fn spawn_wall_avoid<'w, 's, 'a>(
     rotation: Quat,
     size: Vec2,
 ) -> EntityCommands<'w, 's, 'a> {
-    let mut entity_commands = commands.spawn_bundle(wall::WallBundle::new(
+    let mut entity_commands = commands.spawn(wall::WallBundle::new(
         meshes,
         materials,
-        Transform::identity()
+        Transform::IDENTITY
             .with_translation(position)
             .with_rotation(rotation),
         size,
@@ -262,10 +249,10 @@ pub fn spawn_wall_neutral<'w, 's, 'a>(
     rotation: Quat,
     size: Vec2,
 ) -> EntityCommands<'w, 's, 'a> {
-    commands.spawn_bundle(wall::WallBundle::new(
+    commands.spawn(wall::WallBundle::new(
         meshes,
         materials,
-        Transform::identity()
+        Transform::IDENTITY
             .with_translation(position)
             .with_rotation(rotation),
         size,

@@ -5,6 +5,7 @@ pub mod overlay;
 
 use bevy::prelude::*;
 
+#[derive(Resource)]
 pub struct UI {
     root: Entity,
     camera: Option<Entity>,
@@ -13,8 +14,7 @@ pub struct UI {
 impl FromWorld for UI {
     fn from_world(world: &mut World) -> Self {
         let root = world
-            .spawn()
-            .insert_bundle(NodeBundle {
+            .spawn(NodeBundle {
                 style: Style {
                     size: Size {
                         width: Val::Percent(100.0),
@@ -22,12 +22,12 @@ impl FromWorld for UI {
                     },
                     ..Default::default()
                 },
-                color: Color::NONE.into(),
+                background_color: Color::NONE.into(),
                 ..Default::default()
             })
             .id();
 
-        let entity = world.spawn().insert_bundle(Camera2dBundle::default()).id();
+        let entity = world.spawn(Camera2dBundle::default()).id();
 
         Self {
             root,
