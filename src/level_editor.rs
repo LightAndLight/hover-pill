@@ -9,7 +9,7 @@ use bevy_egui::{egui, EguiContexts};
 use bevy_rapier3d::prelude::{Collider, QueryFilter, RapierContext, RayIntersection, Real};
 
 use crate::{
-    arrow,
+    arrow::{self, Arrow},
     camera::Zoom,
     colored_wireframe::ColoredWireframe,
     config::Config,
@@ -117,7 +117,8 @@ fn handle_left_click(
     windows: Query<&Window, With<PrimaryWindow>>,
     rapier_context: Res<RapierContext>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    highlight_query: Query<Entity, With<Highlight>>,
+    highlight_query: Query<(Entity, &Highlight, &Children)>,
+    arrow_query: Query<(Entity, &Arrow)>,
 ) {
     for event in mouse_button_events.iter() {
         if let MouseButton::Left = event.button {
@@ -130,12 +131,13 @@ fn handle_left_click(
                                     *panning = true;
                                 }
                                 Mode::Object { moving } => {
-                                    move_object(
+                                    handle_left_click_object(
                                         &windows,
                                         &camera_query,
                                         moving,
                                         &rapier_context,
                                         &highlight_query,
+                                        &arrow_query,
                                         &mut commands,
                                         &mut meshes,
                                         &mut materials,
@@ -165,12 +167,13 @@ fn handle_left_click(
 }
 
 // This is kind whacky: I had to factor out this function because `rustfmt` refused to format things properly.
-fn move_object(
+fn handle_left_click_object(
     windows: &Query<&Window, With<PrimaryWindow>>,
     camera_query: &Query<(&Camera, &GlobalTransform)>,
     moving: &mut Option<Moving>,
     rapier_context: &Res<RapierContext>,
-    highlight_query: &Query<Entity, With<Highlight>>,
+    highlight_query: &Query<(Entity, &Highlight, &Children)>,
+    arrow_query: &Query<(Entity, &Arrow)>,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -182,12 +185,21 @@ fn move_object(
 
     *moving = closest_intersection(rapier_context.as_ref(), transform.translation(), ray).map(
         |(entity, intersection)| {
-            for entity in highlight_query {
-                trace!("removing Highlight and ColoredWireframe for {:?}", entity);
-                commands
-                    .entity(entity)
-                    .remove::<Highlight>()
-                    .remove::<ColoredWireframe>();
+            for (entity, highlight, children) in highlight_query {
+                if let Highlight::Selected = highlight {
+                    commands
+                        .entity(entity)
+                        .remove::<Highlight>()
+                        .remove::<ColoredWireframe>();
+
+                    for child in children {
+                        if arrow_query.get(*child).is_ok() {
+                            trace!("removing arrow child");
+                            commands.entity(entity).remove_children(&[*child]);
+                            commands.entity(*child).despawn_recursive();
+                        }
+                    }
+                }
             }
 
             trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
