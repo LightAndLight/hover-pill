@@ -3,7 +3,6 @@ use std::f32::consts::PI;
 use bevy::{
     pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
-    transform::TransformBundle,
 };
 use bevy_rapier3d::prelude::Collider;
 
@@ -25,7 +24,25 @@ pub fn spawn(
     let cylinder_length = length - cone_height;
 
     commands
-        .spawn((SpatialBundle::default(), Arrow))
+        .spawn((
+            SpatialBundle {
+                transform,
+                ..default()
+            },
+            Arrow,
+            Collider::compound(vec![
+                (
+                    Vec3::ZERO,
+                    Quat::from_rotation_x(PI / 2.0),
+                    Collider::cylinder(cylinder_length / 2.0, radius),
+                ),
+                (
+                    ((cone_height + cylinder_length) / 2.0) * Vec3::Z,
+                    Quat::from_rotation_x(PI / 2.0),
+                    Collider::cone(cone_height / 2.0, cone_radius),
+                ),
+            ]),
+        ))
         .with_children(|parent| {
             parent
                 .spawn(PbrBundle {
@@ -41,18 +58,10 @@ pub fn spawn(
                         reflectance: 0.0,
                         ..default()
                     }),
-                    transform,
                     ..default()
                 })
                 .insert(NotShadowCaster)
-                .insert(NotShadowReceiver)
-                .with_children(|parent| {
-                    parent
-                        .spawn(TransformBundle::from(Transform::from_rotation(
-                            Quat::from_rotation_x(PI / 2.0),
-                        )))
-                        .insert(Collider::cylinder(cylinder_length / 2.0, radius));
-                });
+                .insert(NotShadowReceiver);
 
             parent
                 .spawn(PbrBundle {
@@ -68,20 +77,11 @@ pub fn spawn(
                         reflectance: 0.0,
                         ..default()
                     }),
-                    transform: transform
-                        * Transform::default().with_translation((cylinder_length / 2.0) * Vec3::Z),
+                    transform: Transform::from_translation((cylinder_length / 2.0) * Vec3::Z),
                     ..default()
                 })
                 .insert(NotShadowCaster)
-                .insert(NotShadowReceiver)
-                .with_children(|parent| {
-                    parent
-                        .spawn(TransformBundle::from(
-                            Transform::from_translation((cylinder_length - cone_height) * Vec3::Z)
-                                * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
-                        ))
-                        .insert(Collider::cone(cone_height / 2.0, cone_radius));
-                });
+                .insert(NotShadowReceiver);
         })
         .id()
 }

@@ -183,96 +183,104 @@ fn handle_left_click_object(
 
     let ray = screen_point_to_world(camera, transform, cursor_position);
 
-    *moving = closest_intersection(rapier_context.as_ref(), transform.translation(), ray).map(
+    let moving_old = std::mem::take(moving);
+    *moving = closest_intersection(rapier_context.as_ref(), transform.translation(), ray).and_then(
         |(entity, intersection)| {
-            for (entity, highlight, children) in highlight_query {
-                if let Highlight::Selected = highlight {
-                    commands
-                        .entity(entity)
-                        .remove::<Highlight>()
-                        .remove::<ColoredWireframe>();
+            if arrow_query.get(entity).is_err() {
+                trace!("clicked non-arrow {:?}", entity);
 
-                    for child in children {
-                        if arrow_query.get(*child).is_ok() {
-                            trace!("removing arrow child");
-                            commands.entity(entity).remove_children(&[*child]);
-                            commands.entity(*child).despawn_recursive();
+                for (entity, highlight, children) in highlight_query {
+                    if let Highlight::Selected = highlight {
+                        commands
+                            .entity(entity)
+                            .remove::<Highlight>()
+                            .remove::<ColoredWireframe>();
+
+                        for child in children {
+                            if arrow_query.get(*child).is_ok() {
+                                trace!("removing arrow child {:?} from {:?}", child, entity);
+                                commands.entity(entity).remove_children(&[*child]);
+                                commands.entity(*child).despawn_recursive();
+                            }
                         }
                     }
                 }
-            }
 
-            trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
-            commands
-                .entity(entity)
-                .insert(ColoredWireframe {
-                    color: Color::GREEN,
+                trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
+                commands
+                    .entity(entity)
+                    .insert(ColoredWireframe {
+                        color: Color::GREEN,
+                    })
+                    .insert(Highlight::Selected)
+                    .with_children(|parent| {
+                        // +Z
+                        arrow::spawn(
+                            parent,
+                            meshes,
+                            materials,
+                            0.2,
+                            2.0,
+                            Transform::from_translation(2.0 * Vec3::Z) * Transform::IDENTITY,
+                        );
+                        // -Z
+                        arrow::spawn(
+                            parent,
+                            meshes,
+                            materials,
+                            0.2,
+                            2.0,
+                            Transform::from_translation(2.0 * -Vec3::Z)
+                                * Transform::from_rotation(Quat::from_rotation_x(PI)),
+                        );
+                        // +Y
+                        arrow::spawn(
+                            parent,
+                            meshes,
+                            materials,
+                            0.2,
+                            2.0,
+                            Transform::from_translation(2.0 * Vec3::Y)
+                                * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
+                        );
+                        // -Y
+                        arrow::spawn(
+                            parent,
+                            meshes,
+                            materials,
+                            0.2,
+                            2.0,
+                            Transform::from_translation(2.0 * -Vec3::Y)
+                                * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
+                        );
+                        // +X
+                        arrow::spawn(
+                            parent,
+                            meshes,
+                            materials,
+                            0.2,
+                            2.0,
+                            Transform::from_translation(2.0 * Vec3::X)
+                                * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
+                        );
+                        // -X
+                        arrow::spawn(
+                            parent,
+                            meshes,
+                            materials,
+                            0.2,
+                            2.0,
+                            Transform::from_translation(2.0 * -Vec3::X)
+                                * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
+                        );
+                    });
+
+                Some(Moving {
+                    intersection_point: intersection.point,
                 })
-                .insert(Highlight::Selected)
-                .with_children(|parent| {
-                    // +Z
-                    arrow::spawn(
-                        parent,
-                        meshes,
-                        materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * Vec3::Z) * Transform::IDENTITY,
-                    );
-                    // -Z
-                    arrow::spawn(
-                        parent,
-                        meshes,
-                        materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * -Vec3::Z)
-                            * Transform::from_rotation(Quat::from_rotation_x(PI)),
-                    );
-                    // +Y
-                    arrow::spawn(
-                        parent,
-                        meshes,
-                        materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * Vec3::Y)
-                            * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
-                    );
-                    // -Y
-                    arrow::spawn(
-                        parent,
-                        meshes,
-                        materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * -Vec3::Y)
-                            * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
-                    );
-                    // +X
-                    arrow::spawn(
-                        parent,
-                        meshes,
-                        materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * Vec3::X)
-                            * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
-                    );
-                    // -X
-                    arrow::spawn(
-                        parent,
-                        meshes,
-                        materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * -Vec3::X)
-                            * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
-                    );
-                });
-
-            Moving {
-                intersection_point: intersection.point,
+            } else {
+                trace!("clicked arrow {:?}", entity);
+                moving_old
             }
         },
     );
