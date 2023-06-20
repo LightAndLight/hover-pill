@@ -43,7 +43,19 @@ pub enum LevelEditor {
 
 pub enum Mode {
     Camera { panning: bool },
-    Object { moving: Option<Moving> },
+    Object { action: ObjectAction },
+}
+
+#[derive(Default)]
+pub enum ObjectAction {
+    #[default]
+    None,
+    Moving {
+        intersection_point: Vec3,
+    },
+    Scaling {
+        axis: Vec3,
+    },
 }
 
 #[derive(PartialEq, Eq)]
@@ -51,10 +63,6 @@ pub enum SpawnMode {
     Avoid,
     Neutral,
     Goal,
-}
-
-pub struct Moving {
-    intersection_point: Vec3,
 }
 
 pub struct LoadEvent {
@@ -118,7 +126,7 @@ fn handle_left_click(
     rapier_context: Res<RapierContext>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     highlight_query: Query<(Entity, &Highlight, &Children)>,
-    arrow_query: Query<(Entity, &Arrow)>,
+    arrow_query: Query<(&Parent, &Arrow, &Transform)>,
 ) {
     for event in mouse_button_events.iter() {
         if let MouseButton::Left = event.button {
@@ -130,11 +138,11 @@ fn handle_left_click(
                                 Mode::Camera { panning } => {
                                     *panning = true;
                                 }
-                                Mode::Object { moving } => {
+                                Mode::Object { action } => {
                                     handle_left_click_object(
                                         &windows,
                                         &camera_query,
-                                        moving,
+                                        action,
                                         &rapier_context,
                                         &highlight_query,
                                         &arrow_query,
@@ -154,8 +162,8 @@ fn handle_left_click(
                                 Mode::Camera { panning } => {
                                     *panning = false;
                                 }
-                                Mode::Object { moving } => {
-                                    *moving = None;
+                                Mode::Object { action } => {
+                                    *action = ObjectAction::None;
                                 }
                             }
                         }
@@ -170,10 +178,10 @@ fn handle_left_click(
 fn handle_left_click_object(
     windows: &Query<&Window, With<PrimaryWindow>>,
     camera_query: &Query<(&Camera, &GlobalTransform)>,
-    moving: &mut Option<Moving>,
+    action: &mut ObjectAction,
     rapier_context: &Res<RapierContext>,
     highlight_query: &Query<(Entity, &Highlight, &Children)>,
-    arrow_query: &Query<(Entity, &Arrow)>,
+    arrow_query: &Query<(&Parent, &Arrow, &Transform)>,
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
@@ -183,107 +191,117 @@ fn handle_left_click_object(
 
     let ray = screen_point_to_world(camera, transform, cursor_position);
 
-    let moving_old = std::mem::take(moving);
-    *moving = closest_intersection(rapier_context.as_ref(), transform.translation(), ray).and_then(
-        |(entity, intersection)| {
-            if arrow_query.get(entity).is_err() {
-                trace!("clicked non-arrow {:?}", entity);
+    let action_old = std::mem::take(action);
+    *action = closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
+        .map(|(entity, intersection)| {
+            match arrow_query.get(entity) {
+                Err(_) => {
+                    trace!("clicked non-arrow {:?}", entity);
 
-                for (entity, highlight, children) in highlight_query {
-                    if let Highlight::Selected = highlight {
-                        commands
-                            .entity(entity)
-                            .remove::<Highlight>()
-                            .remove::<ColoredWireframe>();
+                    for (entity, highlight, children) in highlight_query {
+                        if let Highlight::Selected = highlight {
+                            commands
+                                .entity(entity)
+                                .remove::<Highlight>()
+                                .remove::<ColoredWireframe>();
 
-                        for child in children {
-                            if arrow_query.get(*child).is_ok() {
-                                trace!("removing arrow child {:?} from {:?}", child, entity);
-                                commands.entity(entity).remove_children(&[*child]);
-                                commands.entity(*child).despawn_recursive();
+                            for child in children {
+                                if arrow_query.get(*child).is_ok() {
+                                    trace!("removing arrow child {:?} from {:?}", child, entity);
+                                    commands.entity(entity).remove_children(&[*child]);
+                                    commands.entity(*child).despawn_recursive();
+                                }
                             }
                         }
                     }
+
+                    trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
+                    commands
+                        .entity(entity)
+                        .insert(ColoredWireframe {
+                            color: Color::GREEN,
+                        })
+                        .insert(Highlight::Selected)
+                        .with_children(|parent| {
+                            // +Z
+                            arrow::spawn(
+                                parent,
+                                meshes,
+                                materials,
+                                0.2,
+                                2.0,
+                                Transform::from_translation(2.0 * Vec3::Z) * Transform::IDENTITY,
+                            );
+                            // -Z
+                            arrow::spawn(
+                                parent,
+                                meshes,
+                                materials,
+                                0.2,
+                                2.0,
+                                Transform::from_translation(2.0 * -Vec3::Z)
+                                    * Transform::from_rotation(Quat::from_rotation_x(PI)),
+                            );
+                            // +Y
+                            arrow::spawn(
+                                parent,
+                                meshes,
+                                materials,
+                                0.2,
+                                2.0,
+                                Transform::from_translation(2.0 * Vec3::Y)
+                                    * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
+                            );
+                            // -Y
+                            arrow::spawn(
+                                parent,
+                                meshes,
+                                materials,
+                                0.2,
+                                2.0,
+                                Transform::from_translation(2.0 * -Vec3::Y)
+                                    * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
+                            );
+                            // +X
+                            arrow::spawn(
+                                parent,
+                                meshes,
+                                materials,
+                                0.2,
+                                2.0,
+                                Transform::from_translation(2.0 * Vec3::X)
+                                    * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
+                            );
+                            // -X
+                            arrow::spawn(
+                                parent,
+                                meshes,
+                                materials,
+                                0.2,
+                                2.0,
+                                Transform::from_translation(2.0 * -Vec3::X)
+                                    * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
+                            );
+                        });
+
+                    ObjectAction::Moving {
+                        intersection_point: intersection.point,
+                    }
                 }
+                Ok((_parent, Arrow, arrow_transform)) => {
+                    let scale_axis = arrow_transform.rotation * Vec3::Z;
 
-                trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
-                commands
-                    .entity(entity)
-                    .insert(ColoredWireframe {
-                        color: Color::GREEN,
-                    })
-                    .insert(Highlight::Selected)
-                    .with_children(|parent| {
-                        // +Z
-                        arrow::spawn(
-                            parent,
-                            meshes,
-                            materials,
-                            0.2,
-                            2.0,
-                            Transform::from_translation(2.0 * Vec3::Z) * Transform::IDENTITY,
-                        );
-                        // -Z
-                        arrow::spawn(
-                            parent,
-                            meshes,
-                            materials,
-                            0.2,
-                            2.0,
-                            Transform::from_translation(2.0 * -Vec3::Z)
-                                * Transform::from_rotation(Quat::from_rotation_x(PI)),
-                        );
-                        // +Y
-                        arrow::spawn(
-                            parent,
-                            meshes,
-                            materials,
-                            0.2,
-                            2.0,
-                            Transform::from_translation(2.0 * Vec3::Y)
-                                * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
-                        );
-                        // -Y
-                        arrow::spawn(
-                            parent,
-                            meshes,
-                            materials,
-                            0.2,
-                            2.0,
-                            Transform::from_translation(2.0 * -Vec3::Y)
-                                * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
-                        );
-                        // +X
-                        arrow::spawn(
-                            parent,
-                            meshes,
-                            materials,
-                            0.2,
-                            2.0,
-                            Transform::from_translation(2.0 * Vec3::X)
-                                * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
-                        );
-                        // -X
-                        arrow::spawn(
-                            parent,
-                            meshes,
-                            materials,
-                            0.2,
-                            2.0,
-                            Transform::from_translation(2.0 * -Vec3::X)
-                                * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
-                        );
-                    });
+                    trace!(
+                        "clicked arrow {:?} facing direction {:?}",
+                        entity,
+                        scale_axis
+                    );
 
-                Some(Moving {
-                    intersection_point: intersection.point,
-                })
-            } else {
-                trace!("clicked arrow {:?}", entity);
-                moving_old
+                    ObjectAction::Scaling { axis: scale_axis }
+                }
             }
-        },
-    );
+        })
+        .unwrap_or(action_old);
 }
 
 #[derive(Component)]
@@ -508,8 +526,8 @@ fn handle_drag(
                         }
                     }
                 }
-                Mode::Object { moving } => {
-                    if let Some(moving) = moving {
+                Mode::Object { action } => {
+                    if let ObjectAction::Moving { intersection_point } = action {
                         let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
 
                         if let Some(cursor_moved) = cursor_moved_events.iter().last() {
@@ -637,7 +655,7 @@ fn handle_drag(
                                 if t_denominator != 0.0 {
                                     let t = center_ray
                                         .direction
-                                        .dot(moving.intersection_point - cursor_ray.origin)
+                                        .dot(*intersection_point - cursor_ray.origin)
                                         / t_denominator;
 
                                     if t >= 0.0 {
@@ -651,9 +669,9 @@ fn handle_drag(
                             };
 
                             if let Some(end_t) = end_t {
-                                let translation = cursor_ray.at(end_t) - moving.intersection_point;
+                                let translation = cursor_ray.at(end_t) - *intersection_point;
 
-                                moving.intersection_point += translation;
+                                *intersection_point += translation;
 
                                 for (highlight, mut transform) in &mut transform_query {
                                     if let Highlight::Selected = highlight {
@@ -903,7 +921,9 @@ fn create_ui(
                             .radio(matches!(mode, Mode::Object { .. }), "object")
                             .clicked()
                         {
-                            *mode = Mode::Object { moving: None }
+                            *mode = Mode::Object {
+                                action: ObjectAction::None,
+                            }
                         };
                     });
 
