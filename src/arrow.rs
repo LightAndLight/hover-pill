@@ -23,13 +23,21 @@ pub fn spawn(
     let cone_height = 2.0 * cone_radius;
     let cylinder_length = length - cone_height;
 
+    let material = materials.add(StandardMaterial {
+        base_color: Color::NONE,
+        emissive: Color::rgb(0.0, 1.0, 0.0),
+        metallic: 0.0,
+        reflectance: 0.0,
+        ..default()
+    });
+
     commands
         .spawn((
+            Arrow,
             SpatialBundle {
                 transform,
                 ..default()
             },
-            Arrow,
             Collider::compound(vec![
                 (
                     Vec3::ZERO,
@@ -51,13 +59,7 @@ pub fn spawn(
                         vertices: 64,
                         length: cylinder_length,
                     })),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::NONE,
-                        emissive: Color::rgb(0.0, 1.0, 0.0),
-                        metallic: 0.0,
-                        reflectance: 0.0,
-                        ..default()
-                    }),
+                    material: material.clone(),
                     ..default()
                 })
                 .insert(NotShadowCaster)
@@ -70,13 +72,7 @@ pub fn spawn(
                         vertices: 64,
                         height: cone_height,
                     })),
-                    material: materials.add(StandardMaterial {
-                        base_color: Color::NONE,
-                        emissive: Color::rgb(0.0, 1.0, 0.0),
-                        metallic: 0.0,
-                        reflectance: 0.0,
-                        ..default()
-                    }),
+                    material,
                     transform: Transform::from_translation((cylinder_length / 2.0) * Vec3::Z),
                     ..default()
                 })
