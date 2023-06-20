@@ -13,7 +13,7 @@ use crate::{
     camera::Zoom,
     colored_wireframe::ColoredWireframe,
     config::Config,
-    level::{self, Level},
+    level::{self, wall, Level},
     player,
 };
 
@@ -54,6 +54,7 @@ pub enum ObjectAction {
         intersection_point: Vec3,
     },
     Scaling {
+        intersection_point: Vec3,
         axis: Vec3,
     },
 }
@@ -96,6 +97,7 @@ fn handle_load_event(
             {
                 commands.entity(player).despawn_recursive();
                 commands.entity(camera).despawn_recursive();
+
                 entities.despawn(&mut commands);
             }
         } else {
@@ -116,17 +118,143 @@ enum Highlight {
     Selected,
 }
 
+/** When an object is selected it is surrounded by arrows that are used as handles to scale it.
+These arrows should share the object's translation but not its scale. If I add the arrows as children
+of the object then they inherit all the object's transformations, including its scale. As of `bevy` 0.10
+there's no way to choose which transformations a child should inherit
+(see [this issue](https://github.com/bevyengine/bevy/issues/1780)).
+If the arrows inherit the object's scale then they stretch as the object expands, which I don't want.
+
+I don't know if this is a good idea, but here's what I've done. [`add_arrows`] adds [`Arrows`]
+to any entity that becomes [`Highlight::Selected`], such that the [`Arrows`]' [`Transform`] is the
+same as the target entity's. [`remove_arrows`] removes [`Arrows`] when
+[`Highlight`] is removed from an entity. [`update_arrows`] keeps the [`Arrows`] translation in sync
+with the entity the [`Arrows`] are attached to.
+
+Doing things this way means there's a slight delay between the entity's translation and its [`Arrows`],
+so you can see the arrows "follow" the entity when you drag it around quickly.
+*/
+#[derive(Component)]
+struct Arrows {
+    entity: Entity,
+}
+
+fn add_arrows(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    query: Query<(Entity, &Transform, &Highlight), Or<(Added<Highlight>, Changed<Highlight>)>>,
+) {
+    for (entity, transform, highlight) in &query {
+        if let Highlight::Selected = highlight {
+            let arrows = commands
+                .spawn((SpatialBundle {
+                    transform: *transform,
+                    ..default()
+                },))
+                .with_children(|parent| {
+                    // +Z
+                    arrow::spawn(
+                        parent,
+                        &mut meshes,
+                        &mut materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * Vec3::Z),
+                    );
+
+                    // -Z
+                    arrow::spawn(
+                        parent,
+                        &mut meshes,
+                        &mut materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * -Vec3::Z)
+                            * Transform::from_rotation(Quat::from_rotation_x(PI)),
+                    );
+
+                    // +Y
+                    arrow::spawn(
+                        parent,
+                        &mut meshes,
+                        &mut materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * Vec3::Y)
+                            * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
+                    );
+
+                    // -Y
+                    arrow::spawn(
+                        parent,
+                        &mut meshes,
+                        &mut materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * -Vec3::Y)
+                            * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
+                    );
+
+                    // +X
+                    arrow::spawn(
+                        parent,
+                        &mut meshes,
+                        &mut materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * Vec3::X)
+                            * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
+                    );
+
+                    // -X
+                    arrow::spawn(
+                        parent,
+                        &mut meshes,
+                        &mut materials,
+                        0.2,
+                        2.0,
+                        Transform::from_translation(2.0 * -Vec3::X)
+                            * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
+                    );
+                })
+                .id();
+            commands.entity(entity).insert(Arrows { entity: arrows });
+        }
+    }
+}
+
+fn update_arrows(
+    query: Query<(&Transform, &Arrows), Changed<Transform>>,
+    mut transform_query: Query<&mut Transform, Without<Arrows>>,
+) {
+    for (transform, arrows) in query.iter() {
+        transform_query.get_mut(arrows.entity).unwrap().translation = transform.translation;
+    }
+}
+
+fn remove_arrows(
+    mut commands: Commands,
+    mut removals: RemovedComponents<Highlight>,
+    query: Query<&Arrows>,
+) {
+    for entity in removals.iter() {
+        if let Ok(arrows) = query.get(entity) {
+            commands.entity(arrows.entity).despawn_recursive();
+            commands.entity(entity).remove::<Arrows>();
+        }
+    }
+}
+
 fn handle_left_click(
     mut commands: Commands,
     mut level_editor: Option<ResMut<LevelEditor>>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     rapier_context: Res<RapierContext>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    highlight_query: Query<(Entity, &Highlight, &Children)>,
-    arrow_query: Query<(&Parent, &Arrow, &Transform)>,
+    highlight_query: Query<(Entity, &Highlight)>,
+    arrow_query: Query<(&Arrow, &Transform)>,
 ) {
     for event in mouse_button_events.iter() {
         if let MouseButton::Left = event.button {
@@ -147,8 +275,6 @@ fn handle_left_click(
                                         &highlight_query,
                                         &arrow_query,
                                         &mut commands,
-                                        &mut meshes,
-                                        &mut materials,
                                     );
                                 }
                             }
@@ -180,11 +306,9 @@ fn handle_left_click_object(
     camera_query: &Query<(&Camera, &GlobalTransform)>,
     action: &mut ObjectAction,
     rapier_context: &Res<RapierContext>,
-    highlight_query: &Query<(Entity, &Highlight, &Children)>,
-    arrow_query: &Query<(&Parent, &Arrow, &Transform)>,
+    highlight_query: &Query<(Entity, &Highlight)>,
+    arrow_query: &Query<(&Arrow, &Transform)>,
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
     let (camera, transform) = camera_query.iter().next().unwrap();
@@ -193,111 +317,43 @@ fn handle_left_click_object(
 
     let action_old = std::mem::take(action);
     *action = closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
-        .map(|(entity, intersection)| {
-            match arrow_query.get(entity) {
-                Err(_) => {
-                    trace!("clicked non-arrow {:?}", entity);
+        .map(|(entity, intersection)| match arrow_query.get(entity) {
+            Err(_) => {
+                trace!("clicked non-arrow {:?}", entity);
 
-                    for (entity, highlight, children) in highlight_query {
-                        if let Highlight::Selected = highlight {
-                            commands
-                                .entity(entity)
-                                .remove::<Highlight>()
-                                .remove::<ColoredWireframe>();
-
-                            for child in children {
-                                if arrow_query.get(*child).is_ok() {
-                                    trace!("removing arrow child {:?} from {:?}", child, entity);
-                                    commands.entity(entity).remove_children(&[*child]);
-                                    commands.entity(*child).despawn_recursive();
-                                }
-                            }
-                        }
-                    }
-
-                    trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
-                    commands
-                        .entity(entity)
-                        .insert(ColoredWireframe {
-                            color: Color::GREEN,
-                        })
-                        .insert(Highlight::Selected)
-                        .with_children(|parent| {
-                            // +Z
-                            arrow::spawn(
-                                parent,
-                                meshes,
-                                materials,
-                                0.2,
-                                2.0,
-                                Transform::from_translation(2.0 * Vec3::Z) * Transform::IDENTITY,
-                            );
-                            // -Z
-                            arrow::spawn(
-                                parent,
-                                meshes,
-                                materials,
-                                0.2,
-                                2.0,
-                                Transform::from_translation(2.0 * -Vec3::Z)
-                                    * Transform::from_rotation(Quat::from_rotation_x(PI)),
-                            );
-                            // +Y
-                            arrow::spawn(
-                                parent,
-                                meshes,
-                                materials,
-                                0.2,
-                                2.0,
-                                Transform::from_translation(2.0 * Vec3::Y)
-                                    * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
-                            );
-                            // -Y
-                            arrow::spawn(
-                                parent,
-                                meshes,
-                                materials,
-                                0.2,
-                                2.0,
-                                Transform::from_translation(2.0 * -Vec3::Y)
-                                    * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
-                            );
-                            // +X
-                            arrow::spawn(
-                                parent,
-                                meshes,
-                                materials,
-                                0.2,
-                                2.0,
-                                Transform::from_translation(2.0 * Vec3::X)
-                                    * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
-                            );
-                            // -X
-                            arrow::spawn(
-                                parent,
-                                meshes,
-                                materials,
-                                0.2,
-                                2.0,
-                                Transform::from_translation(2.0 * -Vec3::X)
-                                    * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
-                            );
-                        });
-
-                    ObjectAction::Moving {
-                        intersection_point: intersection.point,
+                for (entity, highlight) in highlight_query {
+                    if let Highlight::Selected = highlight {
+                        commands
+                            .entity(entity)
+                            .remove::<Highlight>()
+                            .remove::<ColoredWireframe>();
                     }
                 }
-                Ok((_parent, Arrow, arrow_transform)) => {
-                    let scale_axis = arrow_transform.rotation * Vec3::Z;
 
-                    trace!(
-                        "clicked arrow {:?} facing direction {:?}",
-                        entity,
-                        scale_axis
-                    );
+                trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
+                commands
+                    .entity(entity)
+                    .insert(ColoredWireframe {
+                        color: Color::GREEN,
+                    })
+                    .insert(Highlight::Selected);
 
-                    ObjectAction::Scaling { axis: scale_axis }
+                ObjectAction::Moving {
+                    intersection_point: intersection.point,
+                }
+            }
+            Ok((Arrow, arrow_transform)) => {
+                let scale_axis = (arrow_transform.rotation * Vec3::Z).normalize();
+
+                trace!(
+                    "clicked arrow {:?} facing direction {:?}",
+                    entity,
+                    scale_axis
+                );
+
+                ObjectAction::Scaling {
+                    intersection_point: intersection.point,
+                    axis: scale_axis,
                 }
             }
         })
@@ -474,7 +530,10 @@ fn handle_object_hover(
                 if let Some((entity, _position)) =
                     closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
                 {
-                    if !matches!(highlight_query.get(entity), Ok((_, Highlight::Selected))) {
+                    if !matches!(
+                        highlight_query.get(entity),
+                        Ok((_, Highlight::Selected { .. }))
+                    ) {
                         debug!("hovered {:?}", entity);
 
                         commands
@@ -497,11 +556,15 @@ struct Plane {
 
 fn handle_drag(
     mut mouse_move_events: EventReader<MouseMotion>,
-    mut cursor_moved_events: EventReader<CursorMoved>,
+    cursor_moved_events: EventReader<CursorMoved>,
     level_editor: Option<ResMut<LevelEditor>>,
     mut query: Query<&mut Transform, (With<Pan>, Without<Camera>)>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut transform_query: Query<(&Highlight, &mut Transform), (Without<Pan>, Without<Camera>)>,
+    highlighted_transform_query: Query<
+        (&Highlight, &mut Transform),
+        (Without<Pan>, Without<Camera>),
+    >,
+    dimensions_query: Query<(&Highlight, &mut wall::Dimensions)>,
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
@@ -527,163 +590,239 @@ fn handle_drag(
                     }
                 }
                 Mode::Object { action } => {
-                    if let ObjectAction::Moving { intersection_point } = action {
-                        let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
+                    handle_drag_object_action(
+                        camera_query,
+                        cursor_moved_events,
+                        highlighted_transform_query,
+                        dimensions_query,
+                        action,
+                    );
+                }
+            }
+        }
+    }
+}
 
-                        if let Some(cursor_moved) = cursor_moved_events.iter().last() {
-                            let cursor_position = cursor_moved.position;
+/// Compute a ray extending from the center of the camera, perpendicular to the viewing plane.
+fn get_camera_ray(camera: &Camera, camera_global_transform: &GlobalTransform) -> Ray {
+    let screen_position_ndc = Vec2::ZERO;
 
-                            let center_ray = {
-                                let screen_position_ndc = Vec2::ZERO;
+    let ndc_near = screen_position_ndc.extend(1.0);
+    let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
 
-                                let ndc_near = screen_position_ndc.extend(1.0);
-                                let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
+    let ndc_to_world =
+        camera_global_transform.compute_matrix() * camera.projection_matrix().inverse();
 
-                                let ndc_to_world = camera_global_transform.compute_matrix()
-                                    * camera.projection_matrix().inverse();
+    let world_near = ndc_to_world.project_point3(ndc_near);
+    let world_far = ndc_to_world.project_point3(ndc_far);
 
-                                let world_near = ndc_to_world.project_point3(ndc_near);
-                                let world_far = ndc_to_world.project_point3(ndc_far);
+    Ray {
+        origin: world_near,
+        direction: (world_far - world_near).normalize(),
+    }
+}
 
-                                Ray {
-                                    origin: world_near,
-                                    direction: (world_far - world_near).normalize(),
-                                }
-                            };
-                            let cursor_ray = screen_point_to_world(
-                                camera,
-                                camera_global_transform,
-                                cursor_position,
-                            );
-                            debug!("cursor ray: {:?}", cursor_ray);
+fn handle_drag_object_action(
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    mut cursor_moved_events: EventReader<CursorMoved>,
+    mut highlighted_transform_query: Query<
+        (&Highlight, &mut Transform),
+        (Without<Pan>, Without<Camera>),
+    >,
+    mut dimensions_query: Query<(&Highlight, &mut wall::Dimensions)>,
+    action: &mut ObjectAction,
+) {
+    match action {
+        ObjectAction::Moving { intersection_point } => {
+            let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
 
-                            /*
-                            A plane is defined of the set of points `(x, y, z)` that satisfy the equation
-                            `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0` where `n` is a vector perpendicular to the
-                            plane and `(x_0, y_0, z_0)` is a predetermined point that lies on the plane.
+            if let Some(cursor_moved) = cursor_moved_events.iter().last() {
+                let cursor_position = cursor_moved.position;
 
-                            `center_ray`'s direction is perpendicular to the near/far planes, and the predetermined point
-                            is the point of intersection when the user started moving. This gives us a "movement plane".
+                let center_ray = get_camera_ray(camera, camera_global_transform);
+                let cursor_ray =
+                    screen_point_to_world(camera, camera_global_transform, cursor_position);
+                debug!("cursor ray: {:?}", cursor_ray);
 
-                            The target object's destination is the point where `cursor_ray` intersects the movement plane.
+                /*
+                A plane is defined of the set of points `(x, y, z)` that satisfy the equation
+                `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0` where `n` is a vector perpendicular to the
+                plane and `(x_0, y_0, z_0)` is a predetermined point that lies on the plane.
 
-                            We need to find some `t` and `(x, y, z)` such that `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0`
-                            and `cursor_ray.origin + t * cursor_ray.direction = (x, y, z)`.
+                `center_ray`'s direction is perpendicular to the near/far planes, and the predetermined point
+                is the point of intersection when the user started moving. This gives us a "movement plane".
 
-                            The ray equation expands to:
+                The target object's destination is the point where `cursor_ray` intersects the movement plane.
 
-                            ```
-                            cursor_ray.origin.x + t * cursor_ray.direction.x = x
-                            cursor_ray.origin.y + t * cursor_ray.direction.y = y
-                            cursor_ray.origin.z + t * cursor_ray.direction.z = z
-                            ```
+                We need to find some `t` and `(x, y, z)` such that `n_x(x - x_0) + n_y(y - y_0) + n_z(z - z_0) = 0`
+                and `cursor_ray.origin + t * cursor_ray.direction = (x, y, z)`.
 
-                            and when substituted in to the plane equation:
+                The ray equation expands to:
 
-                            ```
-                            n_x((cursor_ray.origin.x + t * cursor_ray.direction.x) - x_0)
-                            + n_y((cursor_ray.origin.y + t * cursor_ray.direction.y) - y_0)
-                            + n_z((cursor_ray.origin.z + t * cursor_ray.direction.z) - z_0)
-                            = 0
+                ```
+                cursor_ray.origin.x + t * cursor_ray.direction.x = x
+                cursor_ray.origin.y + t * cursor_ray.direction.y = y
+                cursor_ray.origin.z + t * cursor_ray.direction.z = z
+                ```
 
-                            n_x * cursor_ray.origin.x + n_x * t * cursor_ray.direction.x - n_x * x_0
-                            + n_y * cursor_ray.origin.y + n_y * t * cursor_ray.direction.y - n_y * y_0
-                            + n_z * cursor_ray.origin.z + n_z * t * cursor_ray.direction.z - n_z * z_0
-                            = 0
+                and when substituted in to the plane equation:
 
-                            n_x * t * cursor_ray.direction.x
-                            + n_y * t * cursor_ray.direction.y
-                            + n_z * t * cursor_ray.direction.z
-                            =
-                              -n_x * cursor_ray.origin.x
-                              + n_x * x_0
-                              - n_y * cursor_ray.origin.y
-                              + n_y * y_0
-                              - n_z * cursor_ray.origin.z
-                              + n_z * z_0
+                ```
+                n_x((cursor_ray.origin.x + t * cursor_ray.direction.x) - x_0)
+                + n_y((cursor_ray.origin.y + t * cursor_ray.direction.y) - y_0)
+                + n_z((cursor_ray.origin.z + t * cursor_ray.direction.z) - z_0)
+                = 0
 
-                            t * (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
-                            =
-                              -n_x * cursor_ray.origin.x
-                              + n_x * x_0
-                              - n_y * cursor_ray.origin.y
-                              + n_y * y_0
-                              - n_z * cursor_ray.origin.z
-                              + n_z * z_0
+                n_x * cursor_ray.origin.x + n_x * t * cursor_ray.direction.x - n_x * x_0
+                + n_y * cursor_ray.origin.y + n_y * t * cursor_ray.direction.y - n_y * y_0
+                + n_z * cursor_ray.origin.z + n_z * t * cursor_ray.direction.z - n_z * z_0
+                = 0
 
-                            t = (
-                              -n_x * cursor_ray.origin.x
-                              + n_x * x_0
-                              - n_y * cursor_ray.origin.y
-                              + n_y * y_0
-                              - n_z * cursor_ray.origin.z
-                              + n_z * z_0
-                            ) /
-                              (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+                n_x * t * cursor_ray.direction.x
+                + n_y * t * cursor_ray.direction.y
+                + n_z * t * cursor_ray.direction.z
+                =
+                  -n_x * cursor_ray.origin.x
+                  + n_x * x_0
+                  - n_y * cursor_ray.origin.y
+                  + n_y * y_0
+                  - n_z * cursor_ray.origin.z
+                  + n_z * z_0
 
-                            t = (
-                              n_x * (-cursor_ray.origin.x + x_0)
-                              + n_y * (-cursor_ray.origin.y + y_0)
-                              + n_z * (-cursor_ray.origin.z + z_0)
-                            ) /
-                              (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+                t * (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
+                =
+                  -n_x * cursor_ray.origin.x
+                  + n_x * x_0
+                  - n_y * cursor_ray.origin.y
+                  + n_y * y_0
+                  - n_z * cursor_ray.origin.z
+                  + n_z * z_0
 
-                            t = (
-                              n_x * (-cursor_ray.origin.x + x_0)
-                              + n_y * (-cursor_ray.origin.y + y_0)
-                              + n_z * (-cursor_ray.origin.z + z_0)
-                            ) /
-                              n.dot(cursor_ray.direction)
+                t = (
+                  -n_x * cursor_ray.origin.x
+                  + n_x * x_0
+                  - n_y * cursor_ray.origin.y
+                  + n_y * y_0
+                  - n_z * cursor_ray.origin.z
+                  + n_z * z_0
+                ) /
+                  (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
 
-                            t =
-                              n.dot((-cursor_ray.origin.x + x_0, -cursor_ray.origin.y + y_0, -cursor_ray.origin.z + z_0))
-                              / n.dot(cursor_ray.direction)
+                t = (
+                  n_x * (-cursor_ray.origin.x + x_0)
+                  + n_y * (-cursor_ray.origin.y + y_0)
+                  + n_z * (-cursor_ray.origin.z + z_0)
+                ) /
+                  (n_x * cursor_ray.direction.x + n_y * cursor_ray.direction.y + n_z * cursor_ray.direction.z)
 
-                            t = n.dot(-cursor_ray.origin + (x_0, y_0, z_0)) / n.dot(cursor_ray.direction)
+                t = (
+                  n_x * (-cursor_ray.origin.x + x_0)
+                  + n_y * (-cursor_ray.origin.y + y_0)
+                  + n_z * (-cursor_ray.origin.z + z_0)
+                ) /
+                  n.dot(cursor_ray.direction)
 
-                            t = n.dot((x_0, y_0, z_0) - cursor_ray.origin) / n.dot(cursor_ray.direction)
+                t =
+                  n.dot((-cursor_ray.origin.x + x_0, -cursor_ray.origin.y + y_0, -cursor_ray.origin.z + z_0))
+                  / n.dot(cursor_ray.direction)
 
-                            `t` is undefined when `n.dot(cursor_ray.direction) = 0` because in that case
-                            `cursor_ray.direction` lies parallel to the plane (perpendicular to `n`). If `cursor_ray.origin`
-                            lies on the plan then `t` has infinite solutions (the ray lies in the plain), otherwise
-                            `t` has no solutions.
-                            ```
-                            */
+                t = n.dot(-cursor_ray.origin + (x_0, y_0, z_0)) / n.dot(cursor_ray.direction)
 
-                            let end_t = {
-                                let t_denominator = center_ray.direction.dot(cursor_ray.direction);
-                                if t_denominator != 0.0 {
-                                    let t = center_ray
-                                        .direction
-                                        .dot(*intersection_point - cursor_ray.origin)
-                                        / t_denominator;
+                t = n.dot((x_0, y_0, z_0) - cursor_ray.origin) / n.dot(cursor_ray.direction)
 
-                                    if t >= 0.0 {
-                                        Some(t)
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            };
+                `t` is undefined when `n.dot(cursor_ray.direction) = 0` because in that case
+                `cursor_ray.direction` lies parallel to the plane (perpendicular to `n`). If `cursor_ray.origin`
+                lies on the plan then `t` has infinite solutions (the ray lies in the plain), otherwise
+                `t` has no solutions.
+                ```
+                */
 
-                            if let Some(end_t) = end_t {
-                                let translation = cursor_ray.at(end_t) - *intersection_point;
+                let end_t = {
+                    let t_denominator = center_ray.direction.dot(cursor_ray.direction);
+                    if t_denominator != 0.0 {
+                        let t = center_ray
+                            .direction
+                            .dot(*intersection_point - cursor_ray.origin)
+                            / t_denominator;
 
-                                *intersection_point += translation;
+                        if t >= 0.0 {
+                            Some(t)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                };
 
-                                for (highlight, mut transform) in &mut transform_query {
-                                    if let Highlight::Selected = highlight {
-                                        transform.translation += translation;
-                                    }
-                                }
-                            }
+                if let Some(end_t) = end_t {
+                    let translation = cursor_ray.at(end_t) - *intersection_point;
+
+                    *intersection_point += translation;
+
+                    for (highlight, mut transform) in &mut highlighted_transform_query {
+                        if let Highlight::Selected = highlight {
+                            transform.translation += translation;
                         }
                     }
                 }
             }
         }
+        ObjectAction::Scaling {
+            intersection_point,
+            axis,
+        } => {
+            if let Some(cursor_moved) = cursor_moved_events.iter().last() {
+                /*
+                The goal of scaling is to expand the object in the direction the cursor is moving.
+
+                If the cursor is moving parallel to the scale direction, then the intersection point
+                shouldn't appear to change. This means we have to move the dragged arrow as well as
+                scaling / shifting the object.
+
+                Cursor movement that's perpendicular to the scale direction should not affect the scale.
+
+                We'll consider the plane defined by the `intersection_point` (the cursor's previous position)
+                and the negative viewing direction vector. This plane is perpendicular to the viewing plane.
+                `screen_point_to_world` gives us a ray, also perpendicular to the viewing plane, containing
+                all the points "under" the cursor. This ray must intersect the aforementioned plane - call
+                the intersection point `cursor_destination`. The vector going from `intersection_point`
+                to `cursor_destination` lies on this plane and represents the direction the cursor has
+                moved since last time. The vector projection of the cursor direction onto the scale direction
+                gives the "scaling vector", whose magnitude is the amount that the object should be expanded
+                (and the amount by which the dragged arrow should be moved).
+                */
+
+                let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
+
+                let cursor_position = cursor_moved.position;
+                let camera_ray = get_camera_ray(camera, camera_global_transform);
+
+                let cursor_ray = camera
+                    .viewport_to_world(camera_global_transform, cursor_position)
+                    .unwrap();
+
+                let cursor_destination = cursor_ray.get_point(
+                    cursor_ray
+                        .intersect_plane(*intersection_point, camera_ray.direction)
+                        .unwrap(),
+                );
+
+                let scale_vector =
+                    (cursor_destination - *intersection_point).project_onto_normalized(*axis);
+
+                *intersection_point += scale_vector;
+
+                for (highlight, mut dimensions) in &mut dimensions_query {
+                    if let Highlight::Selected { .. } = highlight {
+                        trace!("scale axis: {:?}", axis);
+                        trace!("scale vector: {:?}", scale_vector);
+                        dimensions.modify(|value| value + scale_vector);
+                    }
+                }
+            }
+        }
+        ObjectAction::None => {}
     }
 }
 
@@ -814,7 +953,7 @@ fn handle_delete(
 
                 let highlight_query = params.p0();
                 for (entity, highlight, deleted_level_item) in &highlight_query {
-                    if let Highlight::Selected = highlight {
+                    if let Highlight::Selected { .. } = highlight {
                         let deleted_level_item_index = deleted_level_item.index;
                         deleted_level_item_indices.push(deleted_level_item_index);
 
@@ -1199,6 +1338,9 @@ impl Plugin for LevelEditorPlugin {
             .add_system(handle_delete.after(handle_object_hover))
             .add_system(move_player)
             .add_system(move_level_item)
-            .add_system(create_ui);
+            .add_system(create_ui)
+            .add_system(add_arrows)
+            .add_system(update_arrows)
+            .add_system(remove_arrows.in_base_set(CoreSet::PostUpdate));
     }
 }

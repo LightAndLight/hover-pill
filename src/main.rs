@@ -1,4 +1,7 @@
-use bevy::prelude::*;
+use bevy::{
+    ecs::schedule::{LogLevel, ScheduleBuildSettings},
+    prelude::*,
+};
 use bevy_atmosphere::prelude::AtmospherePlugin;
 use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
@@ -11,7 +14,7 @@ use hover_pill::{
     fuel_ball::FuelBallPlugin,
     game::GamePlugin,
     hover::HoverPlugin,
-    level::LevelPlugin,
+    level::{wall, LevelPlugin},
     level_editor::LevelEditorPlugin,
     player::PlayerPlugin,
     ui::{self, UiPlugin, UI},
@@ -36,7 +39,13 @@ fn main() {
         asset_dir: "assets".into(),
     };
 
-    app.add_plugins(DefaultPlugins.set(AssetPlugin {
+    app.edit_schedule(CoreSchedule::Main, |schedule| {
+        schedule.set_build_settings(ScheduleBuildSettings {
+            ambiguity_detection: LogLevel::Warn,
+            ..default()
+        });
+    })
+    .add_plugins(DefaultPlugins.set(AssetPlugin {
         watch_for_changes: true,
         asset_folder: config.asset_dir.clone(),
     }))
@@ -56,6 +65,7 @@ fn main() {
     .add_plugin(PlayerPlugin)
     .add_plugin(GamePlugin)
     .add_plugin(LevelEditorPlugin)
+    .add_plugin(wall::DimensionsPlugin)
     .add_startup_system(setup);
 
     if !cfg!(target_family = "wasm") {
