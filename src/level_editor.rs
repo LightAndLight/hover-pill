@@ -174,7 +174,9 @@ fn handle_left_click_object(
     let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
     let (camera, transform) = camera_query.iter().next().unwrap();
 
-    let ray = screen_point_to_world(camera, transform, cursor_position);
+    let ray = camera
+        .viewport_to_world(transform, cursor_position)
+        .unwrap();
 
     let action_old = std::mem::take(action);
     *action = closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
@@ -231,81 +233,6 @@ fn handle_right_click(
                 }
             }
         }
-    }
-}
-
-#[derive(Debug)]
-struct Ray {
-    origin: Vec3,
-    direction: Vec3,
-}
-
-impl Ray {
-    fn at(&self, t: f32) -> Vec3 {
-        self.origin + t * self.direction
-    }
-
-    fn intersect_plane(&self, plane: Plane) -> Option<Vec3> {
-        let t_denominator = plane.normal.dot(self.direction);
-
-        let t = if t_denominator != 0.0 {
-            let t = plane.normal.dot(plane.point - self.origin) / t_denominator;
-
-            if t >= 0.0 {
-                Some(t)
-            } else {
-                None
-            }
-        } else {
-            None
-        }?;
-
-        Some(self.origin + t * self.direction)
-    }
-}
-
-// TODO: use viewport_to_world when 0.9 is released.
-fn screen_point_to_world(
-    camera: &Camera,
-    transform: &GlobalTransform,
-    screen_position: Vec2,
-) -> Ray {
-    let Vec2 {
-        x: logical_width,
-        y: logical_height,
-    } = camera.logical_viewport_size().unwrap();
-
-    let screen_position_ndc = Vec2 {
-        /*
-        0.0 -> -1.0
-        logical_width / 2 -> 0.0
-        logical_width -> 1.0
-        */
-        // x: (screen_position.x - logical_width / 2.0) / (logical_width / 2.0),
-        // x: 2.0 * (screen_position.x - logical_width / 2.0) / logical_width,
-        // x: (2.0 * screen_position.x - logical_width) / logical_width,
-        // x: (2.0 * screen_position.x) / logical_width - logical_width / logical_width,
-        x: 2.0 * screen_position.x / logical_width - 1.0,
-
-        /*
-        0.0 -> -1.0
-        logical_height / 2 -> 0.0
-        logical_height -> 1.0
-        */
-        y: 2.0 * screen_position.y / logical_height - 1.0,
-    };
-
-    let ndc_near = screen_position_ndc.extend(1.0);
-    let ndc_far = screen_position_ndc.extend(std::f32::EPSILON);
-
-    let ndc_to_world = transform.compute_matrix() * camera.projection_matrix().inverse();
-
-    let world_near = ndc_to_world.project_point3(ndc_near);
-    let world_far = ndc_to_world.project_point3(ndc_far);
-
-    Ray {
-        origin: world_near,
-        direction: (world_far - world_near).normalize(),
     }
 }
 
@@ -371,7 +298,9 @@ fn handle_object_hover(
             let cursor_position = event.position;
             let (camera, transform) = camera_query.iter().next().unwrap();
 
-            let ray = screen_point_to_world(camera, transform, cursor_position);
+            let ray = camera
+                .viewport_to_world(transform, cursor_position)
+                .unwrap();
 
             if let Some((entity, _position)) =
                 closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
@@ -392,11 +321,6 @@ fn handle_object_hover(
             }
         }
     }
-}
-
-struct Plane {
-    point: Vec3,
-    normal: Vec3,
 }
 
 fn handle_drag(
@@ -480,8 +404,9 @@ fn handle_drag_object_action(
                 let cursor_position = cursor_moved.position;
 
                 let center_ray = get_camera_ray(camera, camera_global_transform);
-                let cursor_ray =
-                    screen_point_to_world(camera, camera_global_transform, cursor_position);
+                let cursor_ray = camera
+                    .viewport_to_world(camera_global_transform, cursor_position)
+                    .unwrap();
                 debug!("cursor ray: {:?}", cursor_ray);
 
                 /*
@@ -596,7 +521,7 @@ fn handle_drag_object_action(
                 };
 
                 if let Some(end_t) = end_t {
-                    let translation = cursor_ray.at(end_t) - *intersection_point;
+                    let translation = cursor_ray.get_point(end_t) - *intersection_point;
 
                     *intersection_point += translation;
 
@@ -654,15 +579,15 @@ fn handle_spawn(
 
             let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
 
-            let cursor_ray =
-                screen_point_to_world(camera, camera_global_transform, cursor_position);
-
-            let position = cursor_ray
-                .intersect_plane(Plane {
-                    normal: pan_transform.rotation * -Vec3::Z,
-                    point: pan_transform.translation,
-                })
+            let cursor_ray = camera
+                .viewport_to_world(camera_global_transform, cursor_position)
                 .unwrap();
+
+            let position = cursor_ray.get_point(
+                cursor_ray
+                    .intersect_plane(pan_transform.translation, pan_transform.rotation * -Vec3::Z)
+                    .unwrap(),
+            );
             let rotation = Quat::default();
             let size = Vec2::new(5.0, 5.0);
 
