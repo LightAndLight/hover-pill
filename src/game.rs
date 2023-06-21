@@ -113,7 +113,7 @@ pub fn handle_main_menu(
                 debug!("play");
 
                 ui::clear(&mut commands, &mut ui);
-                ui::remove_camera(&mut commands, &mut ui);
+                ui::camera_off(&mut commands, &mut ui);
 
                 ui::set(&mut commands, &mut ui, |commands| {
                     ui::fuel_bar::create(commands, &asset_server)
@@ -127,7 +127,7 @@ pub fn handle_main_menu(
                 debug!("level editor");
 
                 ui::clear(&mut commands, &mut ui);
-                ui::remove_camera(&mut commands, &mut ui);
+                ui::camera_off(&mut commands, &mut ui);
 
                 editor_load_level.send(level_editor::LoadEvent {
                     path: "levels/tutorial_1.json".into(),

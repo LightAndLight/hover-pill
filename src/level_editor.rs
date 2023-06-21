@@ -14,6 +14,7 @@ use crate::{
     config::Config,
     level::{self, Level},
     player,
+    ui::{self, UI},
 };
 
 #[derive(Resource)]
@@ -71,37 +72,34 @@ fn handle_load_event(
     mut events: EventReader<LoadEvent>,
     asset_server: Res<AssetServer>,
     level_editor: Option<ResMut<LevelEditor>>,
+    mut state: ResMut<NextState<State>>,
 ) {
     if let Some(event) = events.iter().last() {
         let handle = asset_server.load(&event.path);
+        let new_level_editor = LevelEditor::Loading {
+            path: event.path.clone(),
+            handle,
+        };
 
-        if let Some(mut level_editor) = level_editor {
-            let old_level_editor = std::mem::replace(
-                level_editor.as_mut(),
-                LevelEditor::Loading {
-                    path: event.path.clone(),
-                    handle,
-                },
-            );
-
-            if let LevelEditor::Loaded {
-                player,
-                camera,
-                entities,
-                ..
-            } = old_level_editor
-            {
-                commands.entity(player).despawn_recursive();
-                commands.entity(camera).despawn_recursive();
-
-                entities.despawn(&mut commands);
+        match level_editor {
+            Some(mut level_editor) => {
+                let old_level_editor = std::mem::replace(level_editor.as_mut(), new_level_editor);
+                if let LevelEditor::Loaded {
+                    player,
+                    camera,
+                    entities,
+                    ..
+                } = old_level_editor
+                {
+                    commands.entity(player).despawn_recursive();
+                    commands.entity(camera).despawn_recursive();
+                    entities.despawn(&mut commands);
+                }
             }
-        } else {
-            commands.insert_resource(LevelEditor::Loading {
-                path: event.path.clone(),
-                handle,
-            });
+            None => commands.insert_resource(new_level_editor),
         }
+
+        state.set(State::Enabled);
     }
 }
 
@@ -116,7 +114,7 @@ enum Highlight {
 
 fn handle_left_click(
     mut commands: Commands,
-    mut level_editor: Option<ResMut<LevelEditor>>,
+    mut level_editor: ResMut<LevelEditor>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     windows: Query<&Window, With<PrimaryWindow>>,
     rapier_context: Res<RapierContext>,
@@ -127,37 +125,33 @@ fn handle_left_click(
         if let MouseButton::Left = event.button {
             match event.state {
                 bevy::input::ButtonState::Pressed => {
-                    if let Some(level_editor) = level_editor.as_mut() {
-                        if let LevelEditor::Loaded { mode, selected, .. } = level_editor.as_mut() {
-                            match mode {
-                                Mode::Camera { panning } => {
-                                    *panning = true;
-                                }
-                                Mode::Object { action } => {
-                                    handle_left_click_object(
-                                        &windows,
-                                        &camera_query,
-                                        action,
-                                        selected,
-                                        &rapier_context,
-                                        &highlight_query,
-                                        &mut commands,
-                                    );
-                                }
+                    if let LevelEditor::Loaded { mode, selected, .. } = level_editor.as_mut() {
+                        match mode {
+                            Mode::Camera { panning } => {
+                                *panning = true;
+                            }
+                            Mode::Object { action } => {
+                                handle_left_click_object(
+                                    &windows,
+                                    &camera_query,
+                                    action,
+                                    selected,
+                                    &rapier_context,
+                                    &highlight_query,
+                                    &mut commands,
+                                );
                             }
                         }
                     }
                 }
                 bevy::input::ButtonState::Released => {
-                    if let Some(level_editor) = level_editor.as_mut() {
-                        if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
-                            match mode {
-                                Mode::Camera { panning } => {
-                                    *panning = false;
-                                }
-                                Mode::Object { action } => {
-                                    *action = ObjectAction::None;
-                                }
+                    if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
+                        match mode {
+                            Mode::Camera { panning } => {
+                                *panning = false;
+                            }
+                            Mode::Object { action } => {
+                                *action = ObjectAction::None;
                             }
                         }
                     }
@@ -355,47 +349,45 @@ fn handle_object_hover(
     mut cursor_move_events: EventReader<CursorMoved>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     rapier_context: Res<RapierContext>,
-    level_editor: Option<ResMut<LevelEditor>>,
+    mut level_editor: ResMut<LevelEditor>,
     highlight_query: Query<(Entity, &Highlight)>,
 ) {
-    if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded {
-            mode: Mode::Object { .. },
-            ..
-        } = level_editor.as_mut()
-        {
-            if let Some(event) = cursor_move_events.iter().last() {
-                for (entity, highlight) in &highlight_query {
-                    if let Highlight::Hovered = highlight {
-                        trace!("removing Highlight and ColoredWireframe for {:?}", entity);
-                        commands
-                            .entity(entity)
-                            .remove::<Highlight>()
-                            .remove::<ColoredWireframe>();
-                    }
+    if let LevelEditor::Loaded {
+        mode: Mode::Object { .. },
+        ..
+    } = level_editor.as_mut()
+    {
+        if let Some(event) = cursor_move_events.iter().last() {
+            for (entity, highlight) in &highlight_query {
+                if let Highlight::Hovered = highlight {
+                    trace!("removing Highlight and ColoredWireframe for {:?}", entity);
+                    commands
+                        .entity(entity)
+                        .remove::<Highlight>()
+                        .remove::<ColoredWireframe>();
                 }
+            }
 
-                let cursor_position = event.position;
-                let (camera, transform) = camera_query.iter().next().unwrap();
+            let cursor_position = event.position;
+            let (camera, transform) = camera_query.iter().next().unwrap();
 
-                let ray = screen_point_to_world(camera, transform, cursor_position);
+            let ray = screen_point_to_world(camera, transform, cursor_position);
 
-                if let Some((entity, _position)) =
-                    closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
-                {
-                    if !matches!(
-                        highlight_query.get(entity),
-                        Ok((_, Highlight::Selected { .. }))
-                    ) {
-                        debug!("hovered {:?}", entity);
+            if let Some((entity, _position)) =
+                closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
+            {
+                if !matches!(
+                    highlight_query.get(entity),
+                    Ok((_, Highlight::Selected { .. }))
+                ) {
+                    debug!("hovered {:?}", entity);
 
-                        commands
-                            .entity(entity)
-                            .insert(ColoredWireframe {
-                                color: Color::WHITE,
-                            })
-                            .insert(Highlight::Hovered);
-                    }
+                    commands
+                        .entity(entity)
+                        .insert(ColoredWireframe {
+                            color: Color::WHITE,
+                        })
+                        .insert(Highlight::Hovered);
                 }
             }
         }
@@ -410,7 +402,7 @@ struct Plane {
 fn handle_drag(
     mut mouse_move_events: EventReader<MouseMotion>,
     cursor_moved_events: EventReader<CursorMoved>,
-    level_editor: Option<ResMut<LevelEditor>>,
+    mut level_editor: ResMut<LevelEditor>,
     mut query: Query<&mut Transform, (With<Pan>, Without<Camera>)>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     highlighted_transform_query: Query<
@@ -418,37 +410,35 @@ fn handle_drag(
         (Without<Pan>, Without<Camera>),
     >,
 ) {
-    if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
-            match mode {
-                Mode::Camera { panning } => {
-                    if *panning {
-                        for event in mouse_move_events.iter() {
-                            let delta = event.delta;
-                            // delta.x points to the right
-                            // delta.y points to the bottom
+    if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
+        match mode {
+            Mode::Camera { panning } => {
+                if *panning {
+                    for event in mouse_move_events.iter() {
+                        let delta = event.delta;
+                        // delta.x points to the right
+                        // delta.y points to the bottom
 
-                            for mut transform in &mut query {
-                                // Assume the camera is always looking in the -Z direction (into the screen)
-                                // See [note: implicit camera direction]
-                                let look_direction = transform.rotation * -Vec3::Z;
+                        for mut transform in &mut query {
+                            // Assume the camera is always looking in the -Z direction (into the screen)
+                            // See [note: implicit camera direction]
+                            let look_direction = transform.rotation * -Vec3::Z;
 
-                                let left = look_direction.cross(-Vec3::Y).normalize();
-                                let up = Vec3::Y;
-                                let scale = 0.05;
-                                transform.translation += scale * (delta.x * left + delta.y * up);
-                            }
+                            let left = look_direction.cross(-Vec3::Y).normalize();
+                            let up = Vec3::Y;
+                            let scale = 0.05;
+                            transform.translation += scale * (delta.x * left + delta.y * up);
                         }
                     }
                 }
-                Mode::Object { action } => {
-                    handle_drag_object_action(
-                        camera_query,
-                        cursor_moved_events,
-                        highlighted_transform_query,
-                        action,
-                    );
-                }
+            }
+            Mode::Object { action } => {
+                handle_drag_object_action(
+                    camera_query,
+                    cursor_moved_events,
+                    highlighted_transform_query,
+                    action,
+                );
             }
         }
     }
@@ -646,81 +636,79 @@ fn handle_spawn(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     keycodes: Res<Input<KeyCode>>,
-    level_editor: Option<ResMut<LevelEditor>>,
+    mut level_editor: ResMut<LevelEditor>,
     windows: Query<&Window, With<PrimaryWindow>>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     pan_query: Query<&Transform, With<Pan>>,
 ) {
-    if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded {
-            spawn_mode,
-            level,
-            entities,
-            ..
-        } = level_editor.as_mut()
-        {
-            if keycodes.just_pressed(KeyCode::Space) {
-                let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
-                let pan_transform = pan_query.iter().next().unwrap();
+    if let LevelEditor::Loaded {
+        spawn_mode,
+        level,
+        entities,
+        ..
+    } = level_editor.as_mut()
+    {
+        if keycodes.just_pressed(KeyCode::Space) {
+            let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
+            let pan_transform = pan_query.iter().next().unwrap();
 
-                let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
+            let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
 
-                let cursor_ray =
-                    screen_point_to_world(camera, camera_global_transform, cursor_position);
+            let cursor_ray =
+                screen_point_to_world(camera, camera_global_transform, cursor_position);
 
-                let position = cursor_ray
-                    .intersect_plane(Plane {
-                        normal: pan_transform.rotation * -Vec3::Z,
-                        point: pan_transform.translation,
-                    })
-                    .unwrap();
-                let rotation = Quat::default();
-                let size = Vec2::new(5.0, 5.0);
+            let position = cursor_ray
+                .intersect_plane(Plane {
+                    normal: pan_transform.rotation * -Vec3::Z,
+                    point: pan_transform.translation,
+                })
+                .unwrap();
+            let rotation = Quat::default();
+            let size = Vec2::new(5.0, 5.0);
 
-                level.structure.push(level::LevelItem::Wall {
-                    wall_type: match spawn_mode {
-                        SpawnMode::Avoid => level::WallType::Avoid,
-                        SpawnMode::Neutral => level::WallType::Neutral,
-                        SpawnMode::Goal => level::WallType::Goal,
-                    },
+            level.structure.push(level::LevelItem::Wall {
+                wall_type: match spawn_mode {
+                    SpawnMode::Avoid => level::WallType::Avoid,
+                    SpawnMode::Neutral => level::WallType::Neutral,
+                    SpawnMode::Goal => level::WallType::Goal,
+                },
+                position,
+                rotation,
+                size,
+            });
+
+            let index = entities.level_items.len();
+
+            let spawned_entity = (match spawn_mode {
+                SpawnMode::Avoid => level::spawn_wall_avoid(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
                     position,
                     rotation,
                     size,
-                });
+                ),
+                SpawnMode::Neutral => level::spawn_wall_neutral(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    position,
+                    rotation,
+                    size,
+                ),
+                SpawnMode::Goal => level::spawn_wall_goal(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    position,
+                    rotation,
+                    size,
+                ),
+            })
+            .insert(LevelItem { index })
+            .id();
 
-                let index = entities.level_items.len();
-
-                let spawned_entity = (match spawn_mode {
-                    SpawnMode::Avoid => level::spawn_wall_avoid(
-                        &mut commands,
-                        &mut meshes,
-                        &mut materials,
-                        position,
-                        rotation,
-                        size,
-                    ),
-                    SpawnMode::Neutral => level::spawn_wall_neutral(
-                        &mut commands,
-                        &mut meshes,
-                        &mut materials,
-                        position,
-                        rotation,
-                        size,
-                    ),
-                    SpawnMode::Goal => level::spawn_wall_goal(
-                        &mut commands,
-                        &mut meshes,
-                        &mut materials,
-                        position,
-                        rotation,
-                        size,
-                    ),
-                })
-                .insert(LevelItem { index })
-                .id();
-
-                entities.level_items.push(spawned_entity);
-            }
+            entities.level_items.push(spawned_entity);
         }
     }
 }
@@ -728,56 +716,54 @@ fn handle_spawn(
 fn handle_delete(
     mut commands: Commands,
     keycodes: Res<Input<KeyCode>>,
-    level_editor: Option<ResMut<LevelEditor>>,
+    mut level_editor: ResMut<LevelEditor>,
     mut params: ParamSet<(
         Query<(Entity, &Highlight, &LevelItem)>,
         Query<&mut LevelItem>,
     )>,
 ) {
-    if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded {
-            mode: Mode::Object { .. },
-            level,
-            entities,
-            ..
-        } = level_editor.as_mut()
-        {
-            if keycodes.just_pressed(KeyCode::Delete) {
-                debug!("delete pressed");
+    if let LevelEditor::Loaded {
+        mode: Mode::Object { .. },
+        level,
+        entities,
+        ..
+    } = level_editor.as_mut()
+    {
+        if keycodes.just_pressed(KeyCode::Delete) {
+            debug!("delete pressed");
 
-                let mut deleted_level_item_indices = Vec::new();
+            let mut deleted_level_item_indices = Vec::new();
 
-                let highlight_query = params.p0();
-                for (entity, highlight, deleted_level_item) in &highlight_query {
-                    if let Highlight::Selected { .. } = highlight {
-                        let deleted_level_item_index = deleted_level_item.index;
-                        deleted_level_item_indices.push(deleted_level_item_index);
+            let highlight_query = params.p0();
+            for (entity, highlight, deleted_level_item) in &highlight_query {
+                if let Highlight::Selected { .. } = highlight {
+                    let deleted_level_item_index = deleted_level_item.index;
+                    deleted_level_item_indices.push(deleted_level_item_index);
 
-                        debug_assert!(
-                            entities.level_items[deleted_level_item_index] == entity,
-                            "wrong entity at index {:?}. expected {:?}, got {:?}",
-                            deleted_level_item_index,
-                            entity,
-                            entities.level_items[deleted_level_item_index]
-                        );
+                    debug_assert!(
+                        entities.level_items[deleted_level_item_index] == entity,
+                        "wrong entity at index {:?}. expected {:?}, got {:?}",
+                        deleted_level_item_index,
+                        entity,
+                        entities.level_items[deleted_level_item_index]
+                    );
 
-                        level.structure.remove(deleted_level_item.index);
-                        entities.level_items.remove(deleted_level_item.index);
+                    level.structure.remove(deleted_level_item.index);
+                    entities.level_items.remove(deleted_level_item.index);
 
-                        commands.entity(entity).despawn_recursive();
-                    }
+                    commands.entity(entity).despawn_recursive();
                 }
+            }
 
-                /*
-                This could be slow when there are many level objects - iterating
-                through all level object for each deleted object.
-                */
-                let mut level_item_query = params.p1();
-                for deleted_level_item_index in deleted_level_item_indices {
-                    for mut level_item in &mut level_item_query {
-                        if level_item.index > deleted_level_item_index {
-                            level_item.index -= 1;
-                        }
+            /*
+            This could be slow when there are many level objects - iterating
+            through all level object for each deleted object.
+            */
+            let mut level_item_query = params.p1();
+            for deleted_level_item_index in deleted_level_item_indices {
+                for mut level_item in &mut level_item_query {
+                    if level_item.index > deleted_level_item_index {
+                        level_item.index -= 1;
                     }
                 }
             }
@@ -797,14 +783,249 @@ struct SaveEvent {
 fn handle_save_event(
     mut save_event: EventReader<SaveEvent>,
     config: Res<Config>,
-    level_editor: Option<ResMut<LevelEditor>>,
+    level_editor: ResMut<LevelEditor>,
 ) {
-    if let Some(level_editor) = level_editor {
-        if let LevelEditor::Loaded { level, .. } = level_editor.as_ref() {
-            for SaveEvent { path } in save_event.iter() {
-                let file =
-                    File::create(PathBuf::from(config.asset_dir.clone()).join(path)).unwrap();
-                serde_json::to_writer_pretty(file, level).unwrap();
+    if let LevelEditor::Loaded { level, .. } = level_editor.as_ref() {
+        for SaveEvent { path } in save_event.iter() {
+            let file = File::create(PathBuf::from(config.asset_dir.clone()).join(path)).unwrap();
+            serde_json::to_writer_pretty(file, level).unwrap();
+        }
+    }
+}
+
+fn create_ui(
+    mut state: ResMut<NextState<State>>,
+    mut level_editor: ResMut<LevelEditor>,
+    mut egui_contexts: EguiContexts,
+    mut load_event: EventWriter<LoadEvent>,
+    mut save_event: EventWriter<SaveEvent>,
+    mut test_event: EventWriter<TestEvent>,
+    mut size_query: Query<&mut Size>,
+) {
+    egui::Window::new("Level Editor")
+        .fixed_pos((10.0, 10.0))
+        .resizable(false)
+        .show(egui_contexts.ctx_mut(), |ui| match level_editor.as_mut() {
+            LevelEditor::Loaded {
+                path,
+                mode,
+                spawn_mode,
+                selected,
+                ..
+            } => {
+                ui.horizontal(|ui| {
+                    ui.label("level");
+
+                    let _ = ui.text_edit_singleline(path);
+
+                    if ui.button("save").clicked() {
+                        save_event.send(SaveEvent { path: path.clone() });
+                    };
+
+                    if ui.button("load").clicked() {
+                        load_event.send(LoadEvent { path: path.clone() })
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("movement");
+
+                    if ui
+                        .radio(matches!(mode, Mode::Camera { .. }), "camera")
+                        .clicked()
+                    {
+                        *mode = Mode::Camera { panning: false };
+                    };
+
+                    if ui
+                        .radio(matches!(mode, Mode::Object { .. }), "object")
+                        .clicked()
+                    {
+                        *mode = Mode::Object {
+                            action: ObjectAction::None,
+                        }
+                    };
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("spawn");
+
+                    let _ = ui.radio_value(spawn_mode, SpawnMode::Avoid, "avoid");
+                    let _ = ui.radio_value(spawn_mode, SpawnMode::Neutral, "neutral");
+                    let _ = ui.radio_value(spawn_mode, SpawnMode::Goal, "goal");
+                });
+
+                if let Some(selected_entity) = selected {
+                    if let Ok(mut size) = size_query.get_mut(*selected_entity) {
+                        ui.add_space(10.0);
+
+                        ui.heading("Selected Object");
+
+                        ui.horizontal(|ui| {
+                            ui.label("length");
+                            let _ = ui.add(
+                                egui::DragValue::new(&mut size.y)
+                                    .speed(1.0)
+                                    .clamp_range(1.0..=f32::INFINITY),
+                            );
+                        });
+
+                        ui.horizontal(|ui| {
+                            ui.label("width");
+                            let _ = ui.add(
+                                egui::DragValue::new(&mut size.x)
+                                    .speed(1.0)
+                                    .clamp_range(1.0..=f32::INFINITY),
+                            );
+                        });
+                    }
+                }
+
+                ui.add_space(10.0);
+
+                ui.vertical_centered(|ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button("test").clicked() {
+                            test_event.send(TestEvent::Start);
+                        }
+
+                        if ui.button("exit").clicked() {
+                            state.set(State::Disabled);
+                        }
+                    })
+                });
+            }
+            LevelEditor::Testing { .. } => {
+                ui.vertical_centered(|ui| {
+                    if ui.button("stop testing").clicked() {
+                        test_event.send(TestEvent::Stop);
+                    }
+                });
+            }
+            _ => {}
+        });
+}
+
+fn handle_test_event(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut test_event: EventReader<TestEvent>,
+    mut level_editor: ResMut<LevelEditor>,
+) {
+    if let Some(test_event) = test_event.iter().last() {
+        match test_event {
+            TestEvent::Start => {
+                let level_editor_content =
+                    std::mem::replace(level_editor.as_mut(), LevelEditor::Empty);
+
+                if let LevelEditor::Loaded {
+                    path,
+                    level,
+                    player,
+                    camera,
+                    entities,
+                    ..
+                } = level_editor_content
+                {
+                    commands.entity(player).despawn_recursive();
+                    commands.entity(camera).despawn_recursive();
+                    entities.despawn(&mut commands);
+
+                    let entities =
+                        level::create_world(&mut commands, &level, &mut meshes, &mut materials);
+
+                    let player = player::spawn_player(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        Transform::from_translation(level.player_start),
+                        None,
+                    );
+
+                    *level_editor = LevelEditor::Testing {
+                        path,
+                        level,
+                        player,
+                        entities,
+                    }
+                }
+            }
+            TestEvent::Stop => {
+                let level_editor_content =
+                    std::mem::replace(level_editor.as_mut(), LevelEditor::Empty);
+
+                if let LevelEditor::Testing {
+                    path,
+                    level,
+                    player,
+                    entities,
+                } = level_editor_content
+                {
+                    commands.entity(player).despawn_recursive();
+                    entities.despawn(&mut commands);
+
+                    let entities =
+                        create_editable_level(&mut commands, &mut meshes, &mut materials, &level);
+
+                    let camera = spawn_camera(&mut commands);
+
+                    let player = spawn_player(&mut commands, &mut meshes, &mut materials, &level);
+
+                    *level_editor = LevelEditor::Loaded {
+                        path,
+                        level,
+                        camera,
+                        entities,
+                        player,
+                        mode: Mode::Camera { panning: false },
+                        spawn_mode: SpawnMode::Neutral,
+                        selected: None,
+                    };
+                }
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+struct Player;
+
+fn move_player(
+    mut level_editor: ResMut<LevelEditor>,
+    query: Query<&Transform, Changed<Transform>>,
+) {
+    if let LevelEditor::Loaded { player, level, .. } = level_editor.as_mut() {
+        if let Ok(transform) = query.get(*player) {
+            level.player_start = transform.translation;
+        }
+    }
+}
+
+#[derive(Component)]
+struct LevelItem {
+    index: usize,
+}
+
+fn move_level_item(
+    mut level_editor: ResMut<LevelEditor>,
+    query: Query<(&LevelItem, &Transform), Changed<Transform>>,
+) {
+    if let LevelEditor::Loaded { level, .. } = level_editor.as_mut() {
+        for (level_item, transform) in &query {
+            match &mut level.structure.get_mut(level_item.index) {
+                Some(level::LevelItem::Wall { position, .. }) => {
+                    *position = transform.translation;
+                }
+                Some(level::LevelItem::FuelBall { position }) => {
+                    *position = transform.translation;
+                }
+                Some(level::LevelItem::Light { position, .. }) => {
+                    *position = transform.translation;
+                }
+                None => {
+                    debug!("no level item at index {}", level_item.index);
+                }
             }
         }
     }
@@ -819,267 +1040,21 @@ struct Size {
 }
 
 fn scale_level_item(
-    level_editor: Option<ResMut<LevelEditor>>,
+    mut level_editor: ResMut<LevelEditor>,
     mut query: Query<(&LevelItem, &mut Transform, &Size), Changed<Size>>,
 ) {
-    if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded { level, .. } = level_editor.as_mut() {
-            for (level_item, mut transform, size) in &mut query {
-                if let Some(level_item_size) = level.structure[level_item.index].size_mut() {
-                    level_item_size.x = size.x;
-                    level_item_size.y = size.y;
-                }
-
-                transform.scale = Vec3 {
-                    x: size.x / size.x_unscaled,
-                    y: transform.scale.y,
-                    z: size.y / size.y_unscaled,
-                };
+    if let LevelEditor::Loaded { level, .. } = level_editor.as_mut() {
+        for (level_item, mut transform, size) in &mut query {
+            if let Some(level_item_size) = level.structure[level_item.index].size_mut() {
+                level_item_size.x = size.x;
+                level_item_size.y = size.y;
             }
-        }
-    }
-}
 
-fn create_ui(
-    level_editor: Option<ResMut<LevelEditor>>,
-    mut egui_contexts: EguiContexts,
-    mut load_event: EventWriter<LoadEvent>,
-    mut save_event: EventWriter<SaveEvent>,
-    mut test_event: EventWriter<TestEvent>,
-    mut size_query: Query<&mut Size>,
-) {
-    if let Some(mut level_editor) = level_editor {
-        egui::Window::new("Level Editor")
-            .fixed_pos((10.0, 10.0))
-            .resizable(false)
-            .show(egui_contexts.ctx_mut(), |ui| match level_editor.as_mut() {
-                LevelEditor::Loaded {
-                    path,
-                    mode,
-                    spawn_mode,
-                    selected,
-                    ..
-                } => {
-                    ui.horizontal(|ui| {
-                        ui.label("level");
-
-                        let _ = ui.text_edit_singleline(path);
-
-                        if ui.button("save").clicked() {
-                            save_event.send(SaveEvent { path: path.clone() });
-                        };
-
-                        if ui.button("load").clicked() {
-                            load_event.send(LoadEvent { path: path.clone() })
-                        }
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("movement");
-
-                        if ui
-                            .radio(matches!(mode, Mode::Camera { .. }), "camera")
-                            .clicked()
-                        {
-                            *mode = Mode::Camera { panning: false };
-                        };
-
-                        if ui
-                            .radio(matches!(mode, Mode::Object { .. }), "object")
-                            .clicked()
-                        {
-                            *mode = Mode::Object {
-                                action: ObjectAction::None,
-                            }
-                        };
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("spawn");
-
-                        let _ = ui.radio_value(spawn_mode, SpawnMode::Avoid, "avoid");
-                        let _ = ui.radio_value(spawn_mode, SpawnMode::Neutral, "neutral");
-                        let _ = ui.radio_value(spawn_mode, SpawnMode::Goal, "goal");
-                    });
-
-                    if let Some(selected_entity) = selected {
-                        if let Ok(mut size) = size_query.get_mut(*selected_entity) {
-                            ui.add_space(10.0);
-
-                            ui.heading("Selected Object");
-
-                            ui.horizontal(|ui| {
-                                ui.label("length");
-                                let _ = ui.add(
-                                    egui::DragValue::new(&mut size.y)
-                                        .speed(1.0)
-                                        .clamp_range(1.0..=f32::INFINITY),
-                                );
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label("width");
-                                let _ = ui.add(
-                                    egui::DragValue::new(&mut size.x)
-                                        .speed(1.0)
-                                        .clamp_range(1.0..=f32::INFINITY),
-                                );
-                            });
-                        }
-                    }
-
-                    ui.add_space(10.0);
-
-                    ui.vertical_centered(|ui| {
-                        if ui.button("test").clicked() {
-                            test_event.send(TestEvent::Start);
-                        }
-                    });
-                }
-                LevelEditor::Testing { .. } => {
-                    ui.vertical_centered(|ui| {
-                        if ui.button("stop testing").clicked() {
-                            test_event.send(TestEvent::Stop);
-                        }
-                    });
-                }
-                _ => {}
-            });
-    }
-}
-
-fn handle_test_event(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut test_event: EventReader<TestEvent>,
-    level_editor: Option<ResMut<LevelEditor>>,
-) {
-    if let Some(test_event) = test_event.iter().last() {
-        if let Some(mut level_editor) = level_editor {
-            match test_event {
-                TestEvent::Start => {
-                    let level_editor_content =
-                        std::mem::replace(level_editor.as_mut(), LevelEditor::Empty);
-
-                    if let LevelEditor::Loaded {
-                        path,
-                        level,
-                        player,
-                        camera,
-                        entities,
-                        ..
-                    } = level_editor_content
-                    {
-                        commands.entity(player).despawn_recursive();
-                        commands.entity(camera).despawn_recursive();
-                        entities.despawn(&mut commands);
-
-                        let entities =
-                            level::create_world(&mut commands, &level, &mut meshes, &mut materials);
-
-                        let player = player::spawn_player(
-                            &mut commands,
-                            &mut meshes,
-                            &mut materials,
-                            Transform::from_translation(level.player_start),
-                            None,
-                        );
-
-                        *level_editor = LevelEditor::Testing {
-                            path,
-                            level,
-                            player,
-                            entities,
-                        }
-                    }
-                }
-                TestEvent::Stop => {
-                    let level_editor_content =
-                        std::mem::replace(level_editor.as_mut(), LevelEditor::Empty);
-
-                    if let LevelEditor::Testing {
-                        path,
-                        level,
-                        player,
-                        entities,
-                    } = level_editor_content
-                    {
-                        commands.entity(player).despawn_recursive();
-                        entities.despawn(&mut commands);
-
-                        let entities = create_editable_level(
-                            &mut commands,
-                            &mut meshes,
-                            &mut materials,
-                            &level,
-                        );
-
-                        let camera = spawn_camera(&mut commands);
-
-                        let player =
-                            spawn_player(&mut commands, &mut meshes, &mut materials, &level);
-
-                        *level_editor = LevelEditor::Loaded {
-                            path,
-                            level,
-                            camera,
-                            entities,
-                            player,
-                            mode: Mode::Camera { panning: false },
-                            spawn_mode: SpawnMode::Neutral,
-                            selected: None,
-                        };
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[derive(Component)]
-struct Player;
-
-fn move_player(
-    level_editor: Option<ResMut<LevelEditor>>,
-    query: Query<&Transform, Changed<Transform>>,
-) {
-    if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded { player, level, .. } = level_editor.as_mut() {
-            if let Ok(transform) = query.get(*player) {
-                level.player_start = transform.translation;
-            }
-        }
-    }
-}
-
-#[derive(Component)]
-struct LevelItem {
-    index: usize,
-}
-
-fn move_level_item(
-    level_editor: Option<ResMut<LevelEditor>>,
-    query: Query<(&LevelItem, &Transform), Changed<Transform>>,
-) {
-    if let Some(mut level_editor) = level_editor {
-        if let LevelEditor::Loaded { level, .. } = level_editor.as_mut() {
-            for (level_item, transform) in &query {
-                match &mut level.structure.get_mut(level_item.index) {
-                    Some(level::LevelItem::Wall { position, .. }) => {
-                        *position = transform.translation;
-                    }
-                    Some(level::LevelItem::FuelBall { position }) => {
-                        *position = transform.translation;
-                    }
-                    Some(level::LevelItem::Light { position, .. }) => {
-                        *position = transform.translation;
-                    }
-                    None => {
-                        debug!("no level item at index {}", level_item.index);
-                    }
-                }
-            }
+            transform.scale = Vec3 {
+                x: size.x / size.x_unscaled,
+                y: transform.scale.y,
+                z: size.y / size.y_unscaled,
+            };
         }
     }
 }
@@ -1089,27 +1064,24 @@ fn finish_loading(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     assets: Res<Assets<Level>>,
-    level_editor: Option<Res<LevelEditor>>,
+    level_editor: Res<LevelEditor>,
 ) {
-    if let Some(level_editor) = level_editor {
-        if let LevelEditor::Loading { path, handle } = level_editor.as_ref() {
-            if let Some(level) = assets.get(handle) {
-                let entities =
-                    create_editable_level(&mut commands, &mut meshes, &mut materials, level);
-                let camera = spawn_camera(&mut commands);
-                let player = spawn_player(&mut commands, &mut meshes, &mut materials, level);
+    if let LevelEditor::Loading { path, handle } = level_editor.as_ref() {
+        if let Some(level) = assets.get(handle) {
+            let entities = create_editable_level(&mut commands, &mut meshes, &mut materials, level);
+            let camera = spawn_camera(&mut commands);
+            let player = spawn_player(&mut commands, &mut meshes, &mut materials, level);
 
-                commands.insert_resource(LevelEditor::Loaded {
-                    path: path.clone(),
-                    level: level.clone(),
-                    entities,
-                    player,
-                    camera,
-                    mode: Mode::Camera { panning: false },
-                    spawn_mode: SpawnMode::Neutral,
-                    selected: None,
-                });
-            }
+            commands.insert_resource(LevelEditor::Loaded {
+                path: path.clone(),
+                level: level.clone(),
+                entities,
+                player,
+                camera,
+                mode: Mode::Camera { panning: false },
+                spawn_mode: SpawnMode::Neutral,
+                selected: None,
+            });
         }
     }
 }
@@ -1196,6 +1168,39 @@ fn spawn_player(
         .id()
 }
 
+fn teardown(
+    mut commands: Commands,
+    mut level_editor: ResMut<LevelEditor>,
+    asset_server: Res<AssetServer>,
+    mut ui: ResMut<UI>,
+) {
+    let old_level_editor = std::mem::replace(level_editor.as_mut(), LevelEditor::Empty);
+
+    if let LevelEditor::Loaded {
+        player,
+        camera,
+        entities,
+        ..
+    } = old_level_editor
+    {
+        commands.entity(player).despawn_recursive();
+        commands.entity(camera).despawn_recursive();
+        entities.despawn(&mut commands);
+    }
+
+    ui::set(&mut commands, &mut ui, |commands| {
+        ui::main_menu::create(&asset_server, commands)
+    });
+    ui::camera_on(&mut commands, &mut ui);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, States)]
+pub enum State {
+    #[default]
+    Disabled,
+    Enabled,
+}
+
 pub struct LevelEditorPlugin;
 
 impl Plugin for LevelEditorPlugin {
@@ -1203,20 +1208,27 @@ impl Plugin for LevelEditorPlugin {
         app.add_event::<LoadEvent>()
             .add_event::<TestEvent>()
             .add_event::<SaveEvent>()
+            .add_state::<State>()
             .add_system(handle_load_event)
-            .add_system(handle_test_event)
-            .add_system(handle_save_event)
-            .add_system(finish_loading)
-            .add_system(handle_left_click)
-            .add_system(handle_right_click)
-            .add_system(handle_object_hover)
-            .add_system(handle_drag)
-            .add_system(handle_drag_rotating)
-            .add_system(handle_spawn)
-            .add_system(handle_delete.after(handle_object_hover))
-            .add_system(move_player)
-            .add_system(move_level_item)
-            .add_system(scale_level_item)
-            .add_system(create_ui);
+            .add_system(teardown.in_schedule(OnExit(State::Enabled)))
+            .add_systems(
+                (
+                    handle_test_event,
+                    create_ui,
+                    handle_save_event,
+                    finish_loading,
+                    handle_left_click,
+                    handle_right_click,
+                    handle_object_hover,
+                    handle_drag,
+                    handle_drag_rotating,
+                    handle_spawn,
+                    handle_delete.after(handle_object_hover),
+                    move_player,
+                    move_level_item,
+                    scale_level_item,
+                )
+                    .in_set(OnUpdate(State::Enabled)),
+            );
     }
 }

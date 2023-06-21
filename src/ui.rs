@@ -55,10 +55,17 @@ pub fn update(commands: &mut Commands, ui: &mut UI, update_ui: impl FnOnce(&mut 
     update_ui(commands, ui.root);
 }
 
-pub fn remove_camera(commands: &mut Commands, ui: &mut UI) {
+pub fn camera_off(commands: &mut Commands, ui: &mut UI) {
     if let Some(entity) = ui.camera {
         commands.entity(entity).despawn_recursive();
         ui.camera = None;
+    }
+}
+
+pub fn camera_on(commands: &mut Commands, ui: &mut UI) {
+    if ui.camera.is_none() {
+        let entity = commands.spawn(Camera2dBundle::default()).id();
+        ui.camera = Some(entity)
     }
 }
 
