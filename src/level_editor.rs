@@ -1,4 +1,4 @@
-use std::{fs::File, ops::DerefMut, path::PathBuf};
+use std::{fs::File, path::PathBuf};
 
 use bevy::{
     input::mouse::{MouseButtonInput, MouseMotion},
@@ -361,7 +361,6 @@ fn handle_object_hover(
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
             mode: Mode::Object { .. },
-            selected,
             ..
         } = level_editor.as_mut()
         {

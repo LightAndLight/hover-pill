@@ -14,7 +14,7 @@ use hover_pill::{
     fuel_ball::FuelBallPlugin,
     game::GamePlugin,
     hover::HoverPlugin,
-    level::{wall, LevelPlugin},
+    level::LevelPlugin,
     level_editor::LevelEditorPlugin,
     player::PlayerPlugin,
     ui::{self, UiPlugin, UI},
