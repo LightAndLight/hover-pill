@@ -8,12 +8,7 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    fuel::FuelChanged,
-    fuel_ball::FuelBallBundle,
-    player,
-    ui::{overlay, UI},
-};
+use crate::{fuel::FuelChanged, fuel_ball::FuelBallBundle, player};
 
 #[derive(Serialize, Deserialize, TypeUuid, Clone, Default)]
 #[uuid = "a79e94e4-1d11-4581-82f8-fb82cbc67f43"]
@@ -83,35 +78,6 @@ impl LevelItem {
             LevelItem::Wall { size, .. } => Some(size),
             LevelItem::FuelBall { .. } => None,
             LevelItem::Light { .. } => None,
-        }
-    }
-}
-
-#[derive(Default, Resource)]
-pub enum CurrentLevel {
-    #[default]
-    None,
-    Loading(Handle<Level>),
-    Loaded {
-        handle: Handle<Level>,
-        next_level: Option<String>,
-        player_start: Vec3,
-        structure: Vec<Entity>,
-        player: Entity,
-    },
-}
-
-pub fn clear_level(current_level: &CurrentLevel, commands: &mut Commands) {
-    if let CurrentLevel::Loaded {
-        structure, player, ..
-    } = current_level
-    {
-        debug!("clearing level");
-
-        commands.entity(*player).despawn_recursive();
-
-        for entity in structure {
-            commands.entity(*entity).despawn_recursive();
         }
     }
 }
@@ -281,18 +247,22 @@ pub fn spawn_wall_neutral<'w, 's, 'a>(
     ))
 }
 
-pub fn load_level(
-    asset_server: &AssetServer,
-    ui: &mut UI,
+pub struct LoadedLevel {
+    pub handle: Handle<Level>,
+    pub next_level: Option<String>,
+    pub player_start: Vec3,
+    pub structure: Vec<Entity>,
+    pub player: Entity,
+}
+
+pub fn create(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     fuel_changed: &mut EventWriter<FuelChanged>,
     handle: Handle<Level>,
     level: &Level,
-) {
-    debug!("started loading level");
-
+) -> LoadedLevel {
     let entities: Vec<Entity> = {
         let Entities {
             light,
@@ -310,125 +280,28 @@ pub fn load_level(
         Some(fuel_changed),
     );
 
-    if let Some(overlay_text) = &level.initial_overlay {
-        overlay::level_overview::display(asset_server, commands, ui, overlay_text);
-    }
-
-    debug!("finished loading level");
-
-    commands.insert_resource(CurrentLevel::Loaded {
+    LoadedLevel {
         handle,
         next_level: level.next_level.clone(),
         player_start: level.player_start,
         structure: entities,
         player,
-    });
-}
-
-fn hotreload_level(
-    mut asset_event: EventReader<AssetEvent<Level>>,
-    asset_server: Res<AssetServer>,
-    assets: Res<Assets<Level>>,
-    mut ui: ResMut<UI>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut fuel_changed: EventWriter<FuelChanged>,
-    current_level: Res<CurrentLevel>,
-) {
-    for event in asset_event.iter() {
-        debug!("level asset event: {:?}", event);
-
-        if let AssetEvent::Modified {
-            handle: modified_handle,
-        } = event
-        {
-            debug!("asset modified: {:?}", modified_handle);
-
-            if let CurrentLevel::Loaded {
-                handle: current_level_handle,
-                ..
-            } = current_level.as_ref()
-            {
-                if modified_handle == current_level_handle {
-                    if let Some(level) = assets.get(current_level_handle) {
-                        clear_level(&current_level, &mut commands);
-
-                        load_level(
-                            &asset_server,
-                            &mut ui,
-                            &mut commands,
-                            &mut meshes,
-                            &mut materials,
-                            &mut fuel_changed,
-                            current_level_handle.clone(),
-                            level,
-                        );
-                    }
-                }
-            }
-        }
     }
 }
 
-pub struct LoadEvent {
-    pub path: String,
+pub fn clear(commands: &mut Commands, level: &LoadedLevel) {
+    commands.entity(level.player).despawn_recursive();
+
+    for entity in &level.structure {
+        commands.entity(*entity).despawn_recursive();
+    }
 }
 
 pub struct LevelPlugin;
 
-fn handle_load_events(
-    mut commands: Commands,
-    mut input_events: EventReader<LoadEvent>,
-    current_level: Res<CurrentLevel>,
-    asset_server: Res<AssetServer>,
-) {
-    for event in input_events.iter() {
-        clear_level(&current_level, &mut commands);
-        let handle = asset_server.load(&event.path);
-        commands.insert_resource(CurrentLevel::Loading(handle));
-    }
-}
-
-fn finish_loading(
-    asset_server: Res<AssetServer>,
-    assets: Res<Assets<Level>>,
-    mut ui: ResMut<UI>,
-    current_level: Res<CurrentLevel>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut fuel_changed: EventWriter<FuelChanged>,
-) {
-    if let CurrentLevel::Loading(next_level_handle) = current_level.as_ref() {
-        debug!(
-            "loading {:?}",
-            asset_server.get_handle_path(next_level_handle)
-        );
-
-        if let Some(level) = assets.get(next_level_handle) {
-            load_level(
-                &asset_server,
-                &mut ui,
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &mut fuel_changed,
-                next_level_handle.clone(),
-                level,
-            );
-        }
-    }
-}
-
 impl Plugin for LevelPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset_loader::<LevelAssetLoader>()
-            .add_asset::<Level>()
-            .add_event::<LoadEvent>()
-            .init_resource::<CurrentLevel>()
-            .add_system(handle_load_events)
-            .add_system(finish_loading)
-            .add_system(hotreload_level);
+            .add_asset::<Level>();
     }
 }
