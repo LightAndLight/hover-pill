@@ -65,7 +65,6 @@ fn main() {
     .add_plugin(PlayerPlugin)
     .add_plugin(GamePlugin)
     .add_plugin(LevelEditorPlugin)
-    .add_plugin(wall::DimensionsPlugin)
     .add_startup_system(setup);
 
     if !cfg!(target_family = "wasm") {

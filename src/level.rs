@@ -69,6 +69,24 @@ pub enum LevelItem {
     },
 }
 
+impl LevelItem {
+    pub fn size(&self) -> Option<Vec2> {
+        match self {
+            LevelItem::Wall { size, .. } => Some(*size),
+            LevelItem::FuelBall { .. } => None,
+            LevelItem::Light { .. } => None,
+        }
+    }
+
+    pub fn size_mut(&mut self) -> Option<&mut Vec2> {
+        match self {
+            LevelItem::Wall { size, .. } => Some(size),
+            LevelItem::FuelBall { .. } => None,
+            LevelItem::Light { .. } => None,
+        }
+    }
+}
+
 #[derive(Default, Resource)]
 pub enum CurrentLevel {
     #[default]
@@ -113,6 +131,9 @@ impl Entities {
     }
 }
 
+/**
+Postcondition: the order of [`Entities::level_items`] is in the same order as [`Level::structure`].
+*/
 pub fn create_world(
     commands: &mut Commands,
     level: &Level,

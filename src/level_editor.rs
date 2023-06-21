@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, fs::File, path::PathBuf};
+use std::{fs::File, ops::DerefMut, path::PathBuf};
 
 use bevy::{
     input::mouse::{MouseButtonInput, MouseMotion},
@@ -9,11 +9,10 @@ use bevy_egui::{egui, EguiContexts};
 use bevy_rapier3d::prelude::{Collider, QueryFilter, RapierContext, RayIntersection, Real};
 
 use crate::{
-    arrow::{self, Arrow},
     camera::Zoom,
     colored_wireframe::ColoredWireframe,
     config::Config,
-    level::{self, wall, Level},
+    level::{self, Level},
     player,
 };
 
@@ -32,6 +31,7 @@ pub enum LevelEditor {
         player: Entity,
         mode: Mode,
         spawn_mode: SpawnMode,
+        selected: Option<Entity>,
     },
     Testing {
         path: String,
@@ -52,10 +52,6 @@ pub enum ObjectAction {
     None,
     Moving {
         intersection_point: Vec3,
-    },
-    Scaling {
-        intersection_point: Vec3,
-        axis: Vec3,
     },
 }
 
@@ -118,134 +114,6 @@ enum Highlight {
     Selected,
 }
 
-/** When an object is selected it is surrounded by arrows that are used as handles to scale it.
-These arrows should share the object's translation but not its scale. If I add the arrows as children
-of the object then they inherit all the object's transformations, including its scale. As of `bevy` 0.10
-there's no way to choose which transformations a child should inherit
-(see [this issue](https://github.com/bevyengine/bevy/issues/1780)).
-If the arrows inherit the object's scale then they stretch as the object expands, which I don't want.
-
-I don't know if this is a good idea, but here's what I've done. [`add_arrows`] adds [`Arrows`]
-to any entity that becomes [`Highlight::Selected`], such that the [`Arrows`]' [`Transform`] is the
-same as the target entity's. [`remove_arrows`] removes [`Arrows`] when
-[`Highlight`] is removed from an entity. [`update_arrows`] keeps the [`Arrows`] translation in sync
-with the entity the [`Arrows`] are attached to.
-
-Doing things this way means there's a slight delay between the entity's translation and its [`Arrows`],
-so you can see the arrows "follow" the entity when you drag it around quickly.
-*/
-#[derive(Component)]
-struct Arrows {
-    entity: Entity,
-}
-
-fn add_arrows(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    query: Query<(Entity, &Transform, &Highlight), Or<(Added<Highlight>, Changed<Highlight>)>>,
-) {
-    for (entity, transform, highlight) in &query {
-        if let Highlight::Selected = highlight {
-            let arrows = commands
-                .spawn((SpatialBundle {
-                    transform: *transform,
-                    ..default()
-                },))
-                .with_children(|parent| {
-                    // +Z
-                    arrow::spawn(
-                        parent,
-                        &mut meshes,
-                        &mut materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * Vec3::Z),
-                    );
-
-                    // -Z
-                    arrow::spawn(
-                        parent,
-                        &mut meshes,
-                        &mut materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * -Vec3::Z)
-                            * Transform::from_rotation(Quat::from_rotation_x(PI)),
-                    );
-
-                    // +Y
-                    arrow::spawn(
-                        parent,
-                        &mut meshes,
-                        &mut materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * Vec3::Y)
-                            * Transform::from_rotation(Quat::from_rotation_x(-PI / 2.0)),
-                    );
-
-                    // -Y
-                    arrow::spawn(
-                        parent,
-                        &mut meshes,
-                        &mut materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * -Vec3::Y)
-                            * Transform::from_rotation(Quat::from_rotation_x(PI / 2.0)),
-                    );
-
-                    // +X
-                    arrow::spawn(
-                        parent,
-                        &mut meshes,
-                        &mut materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * Vec3::X)
-                            * Transform::from_rotation(Quat::from_rotation_y(PI / 2.0)),
-                    );
-
-                    // -X
-                    arrow::spawn(
-                        parent,
-                        &mut meshes,
-                        &mut materials,
-                        0.2,
-                        2.0,
-                        Transform::from_translation(2.0 * -Vec3::X)
-                            * Transform::from_rotation(Quat::from_rotation_y(-PI / 2.0)),
-                    );
-                })
-                .id();
-            commands.entity(entity).insert(Arrows { entity: arrows });
-        }
-    }
-}
-
-fn update_arrows(
-    query: Query<(&Transform, &Arrows), Changed<Transform>>,
-    mut transform_query: Query<&mut Transform, Without<Arrows>>,
-) {
-    for (transform, arrows) in query.iter() {
-        transform_query.get_mut(arrows.entity).unwrap().translation = transform.translation;
-    }
-}
-
-fn remove_arrows(
-    mut commands: Commands,
-    mut removals: RemovedComponents<Highlight>,
-    query: Query<&Arrows>,
-) {
-    for entity in removals.iter() {
-        if let Ok(arrows) = query.get(entity) {
-            commands.entity(arrows.entity).despawn_recursive();
-            commands.entity(entity).remove::<Arrows>();
-        }
-    }
-}
-
 fn handle_left_click(
     mut commands: Commands,
     mut level_editor: Option<ResMut<LevelEditor>>,
@@ -254,14 +122,13 @@ fn handle_left_click(
     rapier_context: Res<RapierContext>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
     highlight_query: Query<(Entity, &Highlight)>,
-    arrow_query: Query<(&Arrow, &Transform)>,
 ) {
     for event in mouse_button_events.iter() {
         if let MouseButton::Left = event.button {
             match event.state {
                 bevy::input::ButtonState::Pressed => {
                     if let Some(level_editor) = level_editor.as_mut() {
-                        if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
+                        if let LevelEditor::Loaded { mode, selected, .. } = level_editor.as_mut() {
                             match mode {
                                 Mode::Camera { panning } => {
                                     *panning = true;
@@ -271,9 +138,9 @@ fn handle_left_click(
                                         &windows,
                                         &camera_query,
                                         action,
+                                        selected,
                                         &rapier_context,
                                         &highlight_query,
-                                        &arrow_query,
                                         &mut commands,
                                     );
                                 }
@@ -305,9 +172,9 @@ fn handle_left_click_object(
     windows: &Query<&Window, With<PrimaryWindow>>,
     camera_query: &Query<(&Camera, &GlobalTransform)>,
     action: &mut ObjectAction,
+    selected: &mut Option<Entity>,
     rapier_context: &Res<RapierContext>,
     highlight_query: &Query<(Entity, &Highlight)>,
-    arrow_query: &Query<(&Arrow, &Transform)>,
     commands: &mut Commands,
 ) {
     let cursor_position = windows.get_single().unwrap().cursor_position().unwrap();
@@ -317,44 +184,30 @@ fn handle_left_click_object(
 
     let action_old = std::mem::take(action);
     *action = closest_intersection(rapier_context.as_ref(), transform.translation(), ray)
-        .map(|(entity, intersection)| match arrow_query.get(entity) {
-            Err(_) => {
-                trace!("clicked non-arrow {:?}", entity);
+        .map(|(entity, intersection)| {
+            for (entity, highlight) in highlight_query {
+                if let Highlight::Selected = highlight {
+                    commands
+                        .entity(entity)
+                        .remove::<Highlight>()
+                        .remove::<ColoredWireframe>();
 
-                for (entity, highlight) in highlight_query {
-                    if let Highlight::Selected = highlight {
-                        commands
-                            .entity(entity)
-                            .remove::<Highlight>()
-                            .remove::<ColoredWireframe>();
-                    }
-                }
-
-                trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
-                commands
-                    .entity(entity)
-                    .insert(ColoredWireframe {
-                        color: Color::GREEN,
-                    })
-                    .insert(Highlight::Selected);
-
-                ObjectAction::Moving {
-                    intersection_point: intersection.point,
+                    *selected = None;
                 }
             }
-            Ok((Arrow, arrow_transform)) => {
-                let scale_axis = (arrow_transform.rotation * Vec3::Z).normalize();
 
-                trace!(
-                    "clicked arrow {:?} facing direction {:?}",
-                    entity,
-                    scale_axis
-                );
+            trace!("inserting Highlight and ColoredWireframe for {:?}", entity);
+            commands
+                .entity(entity)
+                .insert(ColoredWireframe {
+                    color: Color::GREEN,
+                })
+                .insert(Highlight::Selected);
 
-                ObjectAction::Scaling {
-                    intersection_point: intersection.point,
-                    axis: scale_axis,
-                }
+            *selected = Some(entity);
+
+            ObjectAction::Moving {
+                intersection_point: intersection.point,
             }
         })
         .unwrap_or(action_old);
@@ -508,6 +361,7 @@ fn handle_object_hover(
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded {
             mode: Mode::Object { .. },
+            selected,
             ..
         } = level_editor.as_mut()
         {
@@ -564,7 +418,6 @@ fn handle_drag(
         (&Highlight, &mut Transform),
         (Without<Pan>, Without<Camera>),
     >,
-    dimensions_query: Query<(&Highlight, &mut wall::Dimensions)>,
 ) {
     if let Some(mut level_editor) = level_editor {
         if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
@@ -594,7 +447,6 @@ fn handle_drag(
                         camera_query,
                         cursor_moved_events,
                         highlighted_transform_query,
-                        dimensions_query,
                         action,
                     );
                 }
@@ -629,7 +481,6 @@ fn handle_drag_object_action(
         (&Highlight, &mut Transform),
         (Without<Pan>, Without<Camera>),
     >,
-    mut dimensions_query: Query<(&Highlight, &mut wall::Dimensions)>,
     action: &mut ObjectAction,
 ) {
     match action {
@@ -764,60 +615,6 @@ fn handle_drag_object_action(
                         if let Highlight::Selected = highlight {
                             transform.translation += translation;
                         }
-                    }
-                }
-            }
-        }
-        ObjectAction::Scaling {
-            intersection_point,
-            axis,
-        } => {
-            if let Some(cursor_moved) = cursor_moved_events.iter().last() {
-                /*
-                The goal of scaling is to expand the object in the direction the cursor is moving.
-
-                If the cursor is moving parallel to the scale direction, then the intersection point
-                shouldn't appear to change. This means we have to move the dragged arrow as well as
-                scaling / shifting the object.
-
-                Cursor movement that's perpendicular to the scale direction should not affect the scale.
-
-                We'll consider the plane defined by the `intersection_point` (the cursor's previous position)
-                and the negative viewing direction vector. This plane is perpendicular to the viewing plane.
-                `screen_point_to_world` gives us a ray, also perpendicular to the viewing plane, containing
-                all the points "under" the cursor. This ray must intersect the aforementioned plane - call
-                the intersection point `cursor_destination`. The vector going from `intersection_point`
-                to `cursor_destination` lies on this plane and represents the direction the cursor has
-                moved since last time. The vector projection of the cursor direction onto the scale direction
-                gives the "scaling vector", whose magnitude is the amount that the object should be expanded
-                (and the amount by which the dragged arrow should be moved).
-                */
-
-                let (camera, camera_global_transform) = camera_query.iter().next().unwrap();
-
-                let cursor_position = cursor_moved.position;
-                let camera_ray = get_camera_ray(camera, camera_global_transform);
-
-                let cursor_ray = camera
-                    .viewport_to_world(camera_global_transform, cursor_position)
-                    .unwrap();
-
-                let cursor_destination = cursor_ray.get_point(
-                    cursor_ray
-                        .intersect_plane(*intersection_point, camera_ray.direction)
-                        .unwrap(),
-                );
-
-                let scale_vector =
-                    (cursor_destination - *intersection_point).project_onto_normalized(*axis);
-
-                *intersection_point += scale_vector;
-
-                for (highlight, mut dimensions) in &mut dimensions_query {
-                    if let Highlight::Selected { .. } = highlight {
-                        trace!("scale axis: {:?}", axis);
-                        trace!("scale vector: {:?}", scale_vector);
-                        dimensions.modify(|value| value + scale_vector);
                     }
                 }
             }
@@ -1014,12 +811,43 @@ fn handle_save_event(
     }
 }
 
+#[derive(Component)]
+struct Size {
+    x: f32,
+    y: f32,
+    x_unscaled: f32,
+    y_unscaled: f32,
+}
+
+fn scale_level_item(
+    level_editor: Option<ResMut<LevelEditor>>,
+    mut query: Query<(&LevelItem, &mut Transform, &Size), Changed<Size>>,
+) {
+    if let Some(mut level_editor) = level_editor {
+        if let LevelEditor::Loaded { level, .. } = level_editor.as_mut() {
+            for (level_item, mut transform, size) in &mut query {
+                if let Some(level_item_size) = level.structure[level_item.index].size_mut() {
+                    level_item_size.x = size.x;
+                    level_item_size.y = size.y;
+                }
+
+                transform.scale = Vec3 {
+                    x: size.x / size.x_unscaled,
+                    y: transform.scale.y,
+                    z: size.y / size.y_unscaled,
+                };
+            }
+        }
+    }
+}
+
 fn create_ui(
     level_editor: Option<ResMut<LevelEditor>>,
     mut egui_contexts: EguiContexts,
     mut load_event: EventWriter<LoadEvent>,
     mut save_event: EventWriter<SaveEvent>,
     mut test_event: EventWriter<TestEvent>,
+    mut size_query: Query<&mut Size>,
 ) {
     if let Some(mut level_editor) = level_editor {
         egui::Window::new("Level Editor")
@@ -1030,6 +858,7 @@ fn create_ui(
                     path,
                     mode,
                     spawn_mode,
+                    selected,
                     ..
                 } => {
                     ui.horizontal(|ui| {
@@ -1073,6 +902,32 @@ fn create_ui(
                         let _ = ui.radio_value(spawn_mode, SpawnMode::Neutral, "neutral");
                         let _ = ui.radio_value(spawn_mode, SpawnMode::Goal, "goal");
                     });
+
+                    if let Some(selected_entity) = selected {
+                        if let Ok(mut size) = size_query.get_mut(*selected_entity) {
+                            ui.add_space(10.0);
+
+                            ui.heading("Selected Object");
+
+                            ui.horizontal(|ui| {
+                                ui.label("length");
+                                let _ = ui.add(
+                                    egui::DragValue::new(&mut size.y)
+                                        .speed(1.0)
+                                        .clamp_range(1.0..=f32::INFINITY),
+                                );
+                            });
+
+                            ui.horizontal(|ui| {
+                                ui.label("width");
+                                let _ = ui.add(
+                                    egui::DragValue::new(&mut size.x)
+                                        .speed(1.0)
+                                        .clamp_range(1.0..=f32::INFINITY),
+                                );
+                            });
+                        }
+                    }
 
                     ui.add_space(10.0);
 
@@ -1154,12 +1009,12 @@ fn handle_test_event(
                         commands.entity(player).despawn_recursive();
                         entities.despawn(&mut commands);
 
-                        let entities =
-                            level::create_world(&mut commands, &level, &mut meshes, &mut materials);
-
-                        for (index, entity) in entities.level_items.iter().enumerate() {
-                            commands.entity(*entity).insert(LevelItem { index });
-                        }
+                        let entities = create_editable_level(
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &level,
+                        );
 
                         let camera = spawn_camera(&mut commands);
 
@@ -1174,6 +1029,7 @@ fn handle_test_event(
                             player,
                             mode: Mode::Camera { panning: false },
                             spawn_mode: SpawnMode::Neutral,
+                            selected: None,
                         };
                     }
                 }
@@ -1240,14 +1096,8 @@ fn finish_loading(
         if let LevelEditor::Loading { path, handle } = level_editor.as_ref() {
             if let Some(level) = assets.get(handle) {
                 let entities =
-                    level::create_world(&mut commands, level, &mut meshes, &mut materials);
-
-                for (index, entity) in entities.level_items.iter().enumerate() {
-                    commands.entity(*entity).insert(LevelItem { index });
-                }
-
+                    create_editable_level(&mut commands, &mut meshes, &mut materials, level);
                 let camera = spawn_camera(&mut commands);
-
                 let player = spawn_player(&mut commands, &mut meshes, &mut materials, level);
 
                 commands.insert_resource(LevelEditor::Loaded {
@@ -1258,10 +1108,39 @@ fn finish_loading(
                     camera,
                     mode: Mode::Camera { panning: false },
                     spawn_mode: SpawnMode::Neutral,
+                    selected: None,
                 });
             }
         }
     }
+}
+
+fn create_editable_level(
+    commands: &mut Commands<'_, '_>,
+    meshes: &mut ResMut<'_, Assets<Mesh>>,
+    materials: &mut ResMut<'_, Assets<StandardMaterial>>,
+    level: &Level,
+) -> level::Entities {
+    let entities = level::create_world(commands, level, meshes, materials);
+
+    for (index, (entity, level_item)) in entities
+        .level_items
+        .iter()
+        .zip(level.structure.iter())
+        .enumerate()
+    {
+        let mut entity_commands = commands.entity(*entity);
+        entity_commands.insert(LevelItem { index });
+        if let Some(size) = level_item.size() {
+            entity_commands.insert(Size {
+                x: size.x,
+                y: size.y,
+                x_unscaled: size.x,
+                y_unscaled: size.y,
+            });
+        }
+    }
+    entities
 }
 
 fn spawn_camera(commands: &mut Commands) -> Entity {
@@ -1338,9 +1217,7 @@ impl Plugin for LevelEditorPlugin {
             .add_system(handle_delete.after(handle_object_hover))
             .add_system(move_player)
             .add_system(move_level_item)
-            .add_system(create_ui)
-            .add_system(add_arrows)
-            .add_system(update_arrows)
-            .add_system(remove_arrows.in_base_set(CoreSet::PostUpdate));
+            .add_system(scale_level_item)
+            .add_system(create_ui);
     }
 }
