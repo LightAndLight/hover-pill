@@ -17,7 +17,7 @@ use hover_pill::{
     level::LevelPlugin,
     level_editor::LevelEditorPlugin,
     player::PlayerPlugin,
-    ui::{self, UiPlugin, UI},
+    ui::{self, UiPlugin},
 };
 
 fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {

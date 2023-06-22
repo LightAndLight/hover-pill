@@ -4,7 +4,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 
-use crate::{game, hover::HoverEvent};
+use crate::{game::state::GameState, hover::HoverEvent};
 
 #[derive(Component)]
 pub struct Controlled {
@@ -118,7 +118,7 @@ pub struct ControlsPlugin;
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            (handle_movement, handle_jump, handle_rotate).in_set(OnUpdate(game::State::Playing)),
+            (handle_movement, handle_jump, handle_rotate).in_set(OnUpdate(GameState::Playing)),
         );
     }
 }

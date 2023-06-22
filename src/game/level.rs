@@ -12,7 +12,7 @@ use crate::{
 use super::state::GameState;
 
 #[derive(Resource)]
-struct LoadingLevel {
+pub struct LoadingLevel {
     handle: Handle<Level>,
 }
 
@@ -62,7 +62,7 @@ pub fn finish_loading_level(
 }
 
 #[derive(Resource)]
-struct CurrentLevel {
+pub struct CurrentLevel {
     value: crate::level::LoadedLevel,
 }
 
