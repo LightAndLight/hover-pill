@@ -26,12 +26,6 @@ fn display_collision_events(mut collision_events: EventReader<CollisionEvent>) {
     }
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut ui: ResMut<UI>) {
-    ui::set(&mut commands, &mut ui, |commands| {
-        ui::main_menu::create(&asset_server, commands)
-    })
-}
-
 fn main() {
     let mut app = App::new();
 
@@ -64,8 +58,7 @@ fn main() {
     .add_plugin(FuelBallPlugin)
     .add_plugin(PlayerPlugin)
     .add_plugin(GamePlugin)
-    .add_plugin(LevelEditorPlugin)
-    .add_startup_system(setup);
+    .add_plugin(LevelEditorPlugin);
 
     if !cfg!(target_family = "wasm") {
         app.add_plugin(AtmospherePlugin);

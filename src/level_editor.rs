@@ -62,6 +62,37 @@ pub enum SpawnMode {
     Goal,
 }
 
+pub fn load(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    level_editor: Option<ResMut<LevelEditor>>,
+    mut state: ResMut<NextState<State>>,
+    path: String,
+) {
+    let handle = asset_server.load(&path);
+    let new_level_editor = LevelEditor::Loading { path, handle };
+
+    match level_editor {
+        Some(mut level_editor) => {
+            let old_level_editor = std::mem::replace(level_editor.as_mut(), new_level_editor);
+            if let LevelEditor::Loaded {
+                player,
+                camera,
+                entities,
+                ..
+            } = old_level_editor
+            {
+                commands.entity(player).despawn_recursive();
+                commands.entity(camera).despawn_recursive();
+                entities.despawn(&mut commands);
+            }
+        }
+        None => commands.insert_resource(new_level_editor),
+    }
+
+    state.set(State::Enabled);
+}
+
 pub struct LoadEvent {
     pub path: String,
 }
