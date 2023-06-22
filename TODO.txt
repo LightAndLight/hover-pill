@@ -1,0 +1,6 @@
+* camera controls don't relinquish when you finish a level
+
+  if you're holding down 'w' then the pill will keep going forward after you hit the goal.
+  mouse remains captured, too.
+
+* player controls don't work in level editor test mode
