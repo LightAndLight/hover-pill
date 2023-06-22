@@ -624,12 +624,7 @@ fn handle_spawn(
                 ),
             })
             .insert(LevelItem { index })
-            .insert(Size {
-                x: size.x,
-                y: size.y,
-                x_unscaled: size.x,
-                y_unscaled: size.y,
-            })
+            .insert(Size::new(size.x, size.y))
             .id();
 
             entities.level_items.push(spawned_entity);
@@ -991,6 +986,17 @@ struct Size {
     y_unscaled: f32,
 }
 
+impl Size {
+    fn new(x: f32, y: f32) -> Self {
+        Size {
+            x,
+            y,
+            x_unscaled: x,
+            y_unscaled: y,
+        }
+    }
+}
+
 fn scale_level_item(
     mut level_editor: ResMut<LevelEditor>,
     mut query: Query<(&LevelItem, &mut Transform, &Size), Changed<Size>>,
@@ -1054,12 +1060,7 @@ fn create_editable_level(
         let mut entity_commands = commands.entity(*entity);
         entity_commands.insert(LevelItem { index });
         if let Some(size) = level_item.size() {
-            entity_commands.insert(Size {
-                x: size.x,
-                y: size.y,
-                x_unscaled: size.x,
-                y_unscaled: size.y,
-            });
+            entity_commands.insert(Size::new(size.x, size.y));
         }
     }
     entities
