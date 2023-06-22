@@ -625,6 +625,7 @@ fn handle_spawn(
             })
             .insert(LevelItem { index })
             .insert(Size::new(size.x, size.y))
+            .insert(Rotation::ZERO)
             .id();
 
             entities.level_items.push(spawned_entity);
@@ -719,7 +720,7 @@ fn create_ui(
     mut load_event: EventWriter<LoadEvent>,
     mut save_event: EventWriter<SaveEvent>,
     mut test_event: EventWriter<TestEvent>,
-    mut item_parameters_query: Query<(&Highlight, &mut Transform, &mut Size)>,
+    mut item_parameters_query: Query<(&Highlight, &mut Transform, &mut Size, &mut Rotation)>,
 ) {
     egui::Window::new("Level Editor")
         .fixed_pos((10.0, 10.0))
@@ -773,7 +774,8 @@ fn create_ui(
                     let _ = ui.radio_value(spawn_mode, SpawnMode::Goal, "goal");
                 });
 
-                for (highlight, mut transform, mut size) in &mut item_parameters_query {
+                for (highlight, mut transform, mut size, mut rotation) in &mut item_parameters_query
+                {
                     if let Highlight::Selected = highlight {
                         ui.add_space(10.0);
 
@@ -823,6 +825,23 @@ fn create_ui(
                                             .speed(1.0)
                                             .clamp_range(1.0..=f32::INFINITY),
                                     );
+                                });
+                            });
+
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label("x");
+                                    let _ = ui.add(egui::Slider::new(&mut rotation.x, 0.0..=360.0));
+                                });
+
+                                ui.horizontal(|ui| {
+                                    ui.label("y");
+                                    let _ = ui.add(egui::Slider::new(&mut rotation.y, 0.0..=360.0));
+                                });
+
+                                ui.horizontal(|ui| {
+                                    ui.label("z");
+                                    let _ = ui.add(egui::Slider::new(&mut rotation.z, 0.0..=360.0));
                                 });
                             });
                         });
@@ -1017,6 +1036,49 @@ fn scale_level_item(
     }
 }
 
+#[derive(Component)]
+struct Rotation {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+impl Rotation {
+    const ZERO: Self = Rotation {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+
+    fn from_quat(quat: &Quat) -> Self {
+        use std::f32::consts::TAU;
+
+        let (x, y, z) = quat.to_euler(EulerRot::XYZ);
+        Self {
+            x: 360.0 * x / TAU,
+            y: 360.0 * y / TAU,
+            z: 360.0 * z / TAU,
+        }
+    }
+
+    fn to_quat(&self) -> Quat {
+        use std::f32::consts::TAU;
+
+        Quat::from_euler(
+            EulerRot::XYZ,
+            TAU * self.x / 360.0,
+            TAU * self.y / 360.0,
+            TAU * self.z / 360.0,
+        )
+    }
+}
+
+fn rotate_level_item(mut query: Query<(&mut Transform, &Rotation), Changed<Rotation>>) {
+    for (mut transform, rotation) in &mut query {
+        transform.rotation = rotation.to_quat();
+    }
+}
+
 fn finish_loading(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -1061,6 +1123,9 @@ fn create_editable_level(
         entity_commands.insert(LevelItem { index });
         if let Some(size) = level_item.size() {
             entity_commands.insert(Size::new(size.x, size.y));
+        }
+        if let Some(rotation) = level_item.rotation() {
+            entity_commands.insert(Rotation::from_quat(&rotation));
         }
     }
     entities
@@ -1182,7 +1247,13 @@ impl Plugin for LevelEditorPlugin {
             .configure_set(LevelEditorSet::Transform.before(LevelEditorSet::Interaction))
             .add_system(create_ui.in_set(LevelEditorSet::Ui))
             .add_systems(
-                (move_player, move_level_item, scale_level_item).in_set(LevelEditorSet::Transform),
+                (
+                    move_player,
+                    move_level_item,
+                    scale_level_item,
+                    rotate_level_item,
+                )
+                    .in_set(LevelEditorSet::Transform),
             )
             .add_systems(
                 (

@@ -80,6 +80,14 @@ impl LevelItem {
             LevelItem::Light { .. } => None,
         }
     }
+
+    pub fn rotation(&self) -> Option<Quat> {
+        match self {
+            LevelItem::Wall { rotation, .. } => Some(*rotation),
+            LevelItem::FuelBall { .. } => None,
+            LevelItem::Light { .. } => None,
+        }
+    }
 }
 
 pub struct Entities {
