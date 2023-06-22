@@ -32,7 +32,6 @@ pub enum LevelEditor {
         player: Entity,
         mode: Mode,
         spawn_mode: SpawnMode,
-        selected: Option<Entity>,
     },
     Testing {
         path: String,
@@ -125,7 +124,7 @@ fn handle_left_click(
         if let MouseButton::Left = event.button {
             match event.state {
                 bevy::input::ButtonState::Pressed => {
-                    if let LevelEditor::Loaded { mode, selected, .. } = level_editor.as_mut() {
+                    if let LevelEditor::Loaded { mode, .. } = level_editor.as_mut() {
                         match mode {
                             Mode::Camera { panning } => {
                                 *panning = true;
@@ -135,7 +134,6 @@ fn handle_left_click(
                                     &windows,
                                     &camera_query,
                                     action,
-                                    selected,
                                     &rapier_context,
                                     &highlight_query,
                                     &mut commands,
@@ -166,7 +164,6 @@ fn handle_left_click_object(
     windows: &Query<&Window, With<PrimaryWindow>>,
     camera_query: &Query<(&Camera, &GlobalTransform)>,
     action: &mut ObjectAction,
-    selected: &mut Option<Entity>,
     rapier_context: &Res<RapierContext>,
     highlight_query: &Query<(Entity, &Highlight)>,
     commands: &mut Commands,
@@ -187,8 +184,6 @@ fn handle_left_click_object(
                         .entity(entity)
                         .remove::<Highlight>()
                         .remove::<ColoredWireframe>();
-
-                    *selected = None;
                 }
             }
 
@@ -199,8 +194,6 @@ fn handle_left_click_object(
                     color: Color::GREEN,
                 })
                 .insert(Highlight::Selected);
-
-            *selected = Some(entity);
 
             ObjectAction::Moving {
                 intersection_point: intersection.point,
@@ -631,6 +624,12 @@ fn handle_spawn(
                 ),
             })
             .insert(LevelItem { index })
+            .insert(Size {
+                x: size.x,
+                y: size.y,
+                x_unscaled: size.x,
+                y_unscaled: size.y,
+            })
             .id();
 
             entities.level_items.push(spawned_entity);
@@ -725,7 +724,7 @@ fn create_ui(
     mut load_event: EventWriter<LoadEvent>,
     mut save_event: EventWriter<SaveEvent>,
     mut test_event: EventWriter<TestEvent>,
-    mut size_query: Query<&mut Size>,
+    mut item_parameters_query: Query<(&Highlight, &mut Transform, &mut Size)>,
 ) {
     egui::Window::new("Level Editor")
         .fixed_pos((10.0, 10.0))
@@ -735,7 +734,6 @@ fn create_ui(
                 path,
                 mode,
                 spawn_mode,
-                selected,
                 ..
             } => {
                 ui.horizontal(|ui| {
@@ -780,28 +778,58 @@ fn create_ui(
                     let _ = ui.radio_value(spawn_mode, SpawnMode::Goal, "goal");
                 });
 
-                if let Some(selected_entity) = selected {
-                    if let Ok(mut size) = size_query.get_mut(*selected_entity) {
+                for (highlight, mut transform, mut size) in &mut item_parameters_query {
+                    if let Highlight::Selected = highlight {
                         ui.add_space(10.0);
 
                         ui.heading("Selected Object");
 
                         ui.horizontal(|ui| {
-                            ui.label("length");
-                            let _ = ui.add(
-                                egui::DragValue::new(&mut size.y)
-                                    .speed(1.0)
-                                    .clamp_range(1.0..=f32::INFINITY),
-                            );
-                        });
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label("x");
+                                    let _ = ui.add(
+                                        egui::DragValue::new(&mut transform.translation.x)
+                                            .speed(1.0),
+                                    );
+                                });
 
-                        ui.horizontal(|ui| {
-                            ui.label("width");
-                            let _ = ui.add(
-                                egui::DragValue::new(&mut size.x)
-                                    .speed(1.0)
-                                    .clamp_range(1.0..=f32::INFINITY),
-                            );
+                                ui.horizontal(|ui| {
+                                    ui.label("y");
+                                    let _ = ui.add(
+                                        egui::DragValue::new(&mut transform.translation.y)
+                                            .speed(1.0),
+                                    );
+                                });
+
+                                ui.horizontal(|ui| {
+                                    ui.label("z");
+                                    let _ = ui.add(
+                                        egui::DragValue::new(&mut transform.translation.z)
+                                            .speed(1.0),
+                                    );
+                                });
+                            });
+
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label("length");
+                                    let _ = ui.add(
+                                        egui::DragValue::new(&mut size.y)
+                                            .speed(1.0)
+                                            .clamp_range(1.0..=f32::INFINITY),
+                                    );
+                                });
+
+                                ui.horizontal(|ui| {
+                                    ui.label("width");
+                                    let _ = ui.add(
+                                        egui::DragValue::new(&mut size.x)
+                                            .speed(1.0)
+                                            .clamp_range(1.0..=f32::INFINITY),
+                                    );
+                                });
+                            });
                         });
                     }
                 }
@@ -905,7 +933,6 @@ fn handle_test_event(
                         player,
                         mode: Mode::Camera { panning: false },
                         spawn_mode: SpawnMode::Neutral,
-                        selected: None,
                     };
                 }
             }
@@ -1005,7 +1032,6 @@ fn finish_loading(
                 camera,
                 mode: Mode::Camera { panning: false },
                 spawn_mode: SpawnMode::Neutral,
-                selected: None,
             });
         }
     }
@@ -1126,6 +1152,13 @@ pub enum State {
     Enabled,
 }
 
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+enum LevelEditorSet {
+    Ui,
+    Transform,
+    Interaction,
+}
+
 pub struct LevelEditorPlugin;
 
 impl Plugin for LevelEditorPlugin {
@@ -1136,10 +1169,23 @@ impl Plugin for LevelEditorPlugin {
             .add_state::<State>()
             .add_system(handle_load_event)
             .add_system(teardown.in_schedule(OnExit(State::Enabled)))
+            .configure_sets(
+                (
+                    LevelEditorSet::Ui,
+                    LevelEditorSet::Transform,
+                    LevelEditorSet::Interaction,
+                )
+                    .in_set(OnUpdate(State::Enabled)),
+            )
+            .configure_set(LevelEditorSet::Ui.before(LevelEditorSet::Transform))
+            .configure_set(LevelEditorSet::Transform.before(LevelEditorSet::Interaction))
+            .add_system(create_ui.in_set(LevelEditorSet::Ui))
+            .add_systems(
+                (move_player, move_level_item, scale_level_item).in_set(LevelEditorSet::Transform),
+            )
             .add_systems(
                 (
                     handle_test_event,
-                    create_ui,
                     handle_save_event,
                     finish_loading,
                     handle_left_click,
@@ -1149,11 +1195,8 @@ impl Plugin for LevelEditorPlugin {
                     handle_drag_rotating,
                     handle_spawn,
                     handle_delete.after(handle_object_hover),
-                    move_player,
-                    move_level_item,
-                    scale_level_item,
                 )
-                    .in_set(OnUpdate(State::Enabled)),
+                    .in_set(LevelEditorSet::Interaction),
             );
     }
 }
