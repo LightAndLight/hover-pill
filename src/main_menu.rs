@@ -5,19 +5,6 @@ use crate::{
     ui::{button, UI},
 };
 
-pub enum MainMenuEvent {
-    Play,
-    LevelEditor,
-}
-
-fn play_callback(commands: &mut Commands) {
-    commands.add(|world: &mut World| world.send_event(MainMenuEvent::Play));
-}
-
-fn level_editor_callback(commands: &mut Commands) {
-    commands.add(|world: &mut World| world.send_event(MainMenuEvent::LevelEditor));
-}
-
 pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
     let style = TextStyle {
         font: asset_server.load("fonts/DejaVuSansMono.ttf"),
@@ -105,6 +92,19 @@ pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
                 });
         })
         .id()
+}
+
+pub enum MainMenuEvent {
+    Play,
+    LevelEditor,
+}
+
+fn play_callback(commands: &mut Commands) {
+    commands.add(|world: &mut World| world.send_event(MainMenuEvent::Play));
+}
+
+fn level_editor_callback(commands: &mut Commands) {
+    commands.add(|world: &mut World| world.send_event(MainMenuEvent::LevelEditor));
 }
 
 fn handle_events(
