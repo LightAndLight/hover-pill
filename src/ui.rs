@@ -1,6 +1,5 @@
 pub mod button;
 pub mod fuel_bar;
-pub mod main_menu;
 pub mod overlay;
 
 use bevy::prelude::*;
@@ -74,7 +73,6 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<UI>()
-            .add_plugin(main_menu::MainMenuPlugin)
             .add_plugin(overlay::OverlayPlugin)
             .add_plugin(fuel_bar::FuelBarPlugin);
     }

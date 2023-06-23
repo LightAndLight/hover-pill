@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use crate::{
     controls::Controlled,
     fuel::{add_fuel, Fuel, FuelChanged},
-    game::state::GameState,
     load_level::CurrentLevel,
+    GameState,
 };
 
 pub struct ResetEvent;

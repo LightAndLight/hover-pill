@@ -2,9 +2,9 @@ use bevy::prelude::*;
 
 use crate::{
     fuel::FuelChanged,
-    game::state::GameState,
     level::{self, Level},
     ui::{self, UI},
+    GameState,
 };
 
 pub struct LoadEvent {

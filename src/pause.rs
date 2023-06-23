@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{controls::Controlled, game::state::GameState};
+use crate::{controls::Controlled, GameState};
 
 #[derive(Component)]
 struct Paused {

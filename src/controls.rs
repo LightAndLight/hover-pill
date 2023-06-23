@@ -4,7 +4,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 
-use crate::{game::state::GameState, hover::HoverEvent, reset::ResetEvent};
+use crate::{hover::HoverEvent, reset::ResetEvent, GameState};
 
 #[derive(Clone, Copy, Component)]
 pub struct Controlled {

@@ -3,10 +3,10 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{
     controls::Controlled,
-    game::state::GameState,
     reset::ResetEvent,
     ui::{self, UI},
     wall::{Wall, WallType},
+    GameState,
 };
 
 enum PlayerHit {

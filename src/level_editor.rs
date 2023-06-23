@@ -13,7 +13,7 @@ use crate::{
     colored_wireframe::ColoredWireframe,
     config::Config,
     level::{self, Level},
-    player,
+    main_menu, player,
     ui::{self, UI},
     wall::{WallBundle, WallType},
 };
@@ -1235,7 +1235,7 @@ fn teardown(
     }
 
     ui::set(&mut commands, &mut ui, |commands| {
-        ui::main_menu::create(&asset_server, commands)
+        main_menu::create(&asset_server, commands)
     });
     ui::camera_on(&mut commands, &mut ui);
 }

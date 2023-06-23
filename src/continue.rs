@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
 use crate::{
-    game::state::GameState,
     ui::{self, UI},
+    GameState,
 };
 
 fn handle_continue(
