@@ -3,13 +3,11 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{
     controls::Controlled,
-    fuel::{Fuel, FuelChanged},
     game::state::GameState,
-    level::wall,
+    reset::ResetEvent,
     ui::{self, UI},
+    wall::{Wall, WallType},
 };
-
-use super::{reset_player, CurrentLevel};
 
 enum PlayerHit {
     Avoid,
@@ -20,7 +18,7 @@ fn check_player_hit(
     player_query: &Query<&Controlled>,
     entity1: &Entity,
     entity2: &Entity,
-    wall_type_query: &Query<&wall::WallType>,
+    wall_query: &Query<&Wall>,
 ) -> Option<PlayerHit> {
     let (player, target) = if player_query.contains(*entity1) {
         Some((*entity1, *entity2))
@@ -30,16 +28,17 @@ fn check_player_hit(
         None
     }?;
 
-    if let Ok(wall_type) = wall_type_query.get(target) {
-        match wall_type {
-            wall::WallType::Avoid => {
+    if let Ok(wall) = wall_query.get(target) {
+        match wall.wall_type {
+            WallType::Avoid => {
                 debug!("player {:?} hit avoid {:?}", player, target);
                 Some(PlayerHit::Avoid)
             }
-            wall::WallType::Goal => {
+            WallType::Goal => {
                 debug!("player {:?} hit goal {:?}", player, target);
                 Some(PlayerHit::Goal)
             }
+            WallType::Neutral => None,
         }
     } else {
         None
@@ -49,13 +48,9 @@ fn check_player_hit(
 pub fn handle_player_collisions(
     mut state: ResMut<NextState<GameState>>,
     mut collision_events: EventReader<CollisionEvent>,
-    check: (Query<&Controlled>, Query<&wall::WallType>),
-    mut reset: (
-        Res<CurrentLevel>,
-        Query<(&mut Transform, &mut Fuel), With<Controlled>>,
-        EventWriter<FuelChanged>,
-    ),
+    check: (Query<&Controlled>, Query<&Wall>),
     mut goal: (Res<AssetServer>, Commands, ResMut<UI>),
+    mut reset_event: EventWriter<ResetEvent>,
 ) {
     for event in collision_events.iter() {
         if let CollisionEvent::Started(entity1, entity2, _) = event {
@@ -64,7 +59,7 @@ pub fn handle_player_collisions(
             if let Some(event) = event {
                 match event {
                     PlayerHit::Avoid => {
-                        reset_player(&reset.0.value, &mut reset.1, &mut reset.2);
+                        reset_event.send(ResetEvent);
                     }
                     PlayerHit::Goal => {
                         state.set(GameState::Paused);

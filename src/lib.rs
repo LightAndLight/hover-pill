@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod collision;
 pub mod colored_wireframe;
 pub mod config;
 pub mod controls;
@@ -11,4 +12,6 @@ pub mod jump;
 pub mod level;
 pub mod level_editor;
 pub mod player;
+pub mod reset;
 pub mod ui;
+pub mod wall;

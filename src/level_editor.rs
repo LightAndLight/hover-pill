@@ -15,6 +15,7 @@ use crate::{
     level::{self, Level},
     player,
     ui::{self, UI},
+    wall::{WallBundle, WallType},
 };
 
 #[derive(Resource)]
@@ -617,9 +618,9 @@ fn handle_spawn(
 
             level.structure.push(level::LevelItem::Wall {
                 wall_type: match spawn_mode {
-                    SpawnMode::Avoid => level::WallType::Avoid,
-                    SpawnMode::Neutral => level::WallType::Neutral,
-                    SpawnMode::Goal => level::WallType::Goal,
+                    SpawnMode::Avoid => WallType::Avoid,
+                    SpawnMode::Neutral => WallType::Neutral,
+                    SpawnMode::Goal => WallType::Goal,
                 },
                 position,
                 rotation,
@@ -629,30 +630,27 @@ fn handle_spawn(
             let index = entities.level_items.len();
 
             let spawned_entity = (match spawn_mode {
-                SpawnMode::Avoid => level::spawn_wall_avoid(
-                    &mut commands,
+                SpawnMode::Avoid => commands.spawn(WallBundle::avoid(
                     &mut meshes,
                     &mut materials,
                     position,
                     rotation,
                     size,
-                ),
-                SpawnMode::Neutral => level::spawn_wall_neutral(
-                    &mut commands,
+                )),
+                SpawnMode::Neutral => commands.spawn(WallBundle::neutral(
                     &mut meshes,
                     &mut materials,
                     position,
                     rotation,
                     size,
-                ),
-                SpawnMode::Goal => level::spawn_wall_goal(
-                    &mut commands,
+                )),
+                SpawnMode::Goal => commands.spawn(WallBundle::goal(
                     &mut meshes,
                     &mut materials,
                     position,
                     rotation,
                     size,
-                ),
+                )),
             })
             .insert(LevelItem { index })
             .insert(Size::new(size.x, size.y))

@@ -4,7 +4,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 
-use crate::{game::state::GameState, hover::HoverEvent};
+use crate::{game::state::GameState, hover::HoverEvent, reset::ResetEvent};
 
 #[derive(Component)]
 pub struct Controlled {
@@ -113,12 +113,19 @@ fn handle_rotate(
     }
 }
 
+pub fn handle_reset(keys: Res<Input<KeyCode>>, mut reset_event: EventWriter<ResetEvent>) {
+    if keys.just_pressed(KeyCode::R) {
+        reset_event.send(ResetEvent)
+    }
+}
+
 pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            (handle_movement, handle_jump, handle_rotate).in_set(OnUpdate(GameState::Playing)),
+            (handle_movement, handle_jump, handle_rotate, handle_reset)
+                .in_set(OnUpdate(GameState::Playing)),
         );
     }
 }

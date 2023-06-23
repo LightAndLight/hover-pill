@@ -1,10 +1,7 @@
-pub mod collision;
-
 use bevy::prelude::*;
 
 use crate::{
-    controls::Controlled,
-    fuel::{add_fuel, Fuel, FuelChanged},
+    fuel::FuelChanged,
     level::{self, Level},
     ui::{self, UI},
 };
@@ -63,7 +60,7 @@ pub fn finish_loading_level(
 
 #[derive(Resource)]
 pub struct CurrentLevel {
-    value: crate::level::LoadedLevel,
+    pub value: crate::level::LoadedLevel,
 }
 
 fn play_level(
@@ -167,32 +164,6 @@ pub fn hotreload_level(
                 }
             }
         }
-    }
-}
-
-pub fn restart_level(
-    keys: Res<Input<KeyCode>>,
-    mut reset: (
-        Res<CurrentLevel>,
-        Query<(&mut Transform, &mut Fuel), With<Controlled>>,
-        EventWriter<FuelChanged>,
-    ),
-) {
-    if keys.just_pressed(KeyCode::R) {
-        reset_player(&reset.0.value, &mut reset.1, &mut reset.2);
-    }
-}
-
-fn reset_player(
-    current_level: &crate::level::LoadedLevel,
-    query: &mut Query<(&mut Transform, &mut Fuel), With<Controlled>>,
-    fuel_changed: &mut EventWriter<FuelChanged>,
-) {
-    for (mut transform, mut fuel) in query {
-        transform.translation = current_level.player_start;
-
-        let amount = 1.0 - fuel.value;
-        add_fuel(&mut fuel, amount, fuel_changed);
     }
 }
 

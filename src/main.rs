@@ -17,6 +17,7 @@ use hover_pill::{
     level::LevelPlugin,
     level_editor::LevelEditorPlugin,
     player::PlayerPlugin,
+    reset::ResetPlugin,
     ui::{self, UiPlugin},
 };
 
@@ -57,6 +58,7 @@ fn main() {
     .add_plugin(HoverPlugin)
     .add_plugin(FuelBallPlugin)
     .add_plugin(PlayerPlugin)
+    .add_plugin(ResetPlugin)
     .add_plugin(GamePlugin)
     .add_plugin(LevelEditorPlugin);
 

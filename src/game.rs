@@ -4,7 +4,10 @@ pub mod state;
 
 use bevy::prelude::*;
 
-use crate::ui::{self, UI};
+use crate::{
+    collision,
+    ui::{self, UI},
+};
 
 use state::GameState;
 
@@ -27,12 +30,6 @@ impl Plugin for GamePlugin {
                 (level::handle_next_level, level::handle_continue)
                     .in_set(OnUpdate(GameState::Paused)),
             )
-            .add_systems(
-                (
-                    level::collision::handle_player_collisions,
-                    level::restart_level,
-                )
-                    .in_set(OnUpdate(GameState::Playing)),
-            );
+            .add_system(collision::handle_player_collisions.in_set(OnUpdate(GameState::Playing)));
     }
 }
