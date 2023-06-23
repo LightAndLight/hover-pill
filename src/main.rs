@@ -16,7 +16,11 @@ use hover_pill::{
     hover::HoverPlugin,
     level::LevelPlugin,
     level_editor::LevelEditorPlugin,
+    load_level::LoadLevelPlugin,
+    next_level::NextLevelPlugin,
+    pause::PausePlugin,
     player::PlayerPlugin,
+    r#continue::ContinuePlugin,
     reset::ResetPlugin,
     ui::{self, UiPlugin},
 };
@@ -50,6 +54,7 @@ fn main() {
     .add_plugin(EguiPlugin)
     .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
     .add_plugin(ui::button::ButtonPlugin)
+    .add_plugin(GamePlugin)
     .add_plugin(ControlsPlugin)
     .add_plugin(ZoomPlugin)
     .add_plugin(UiPlugin)
@@ -59,7 +64,10 @@ fn main() {
     .add_plugin(FuelBallPlugin)
     .add_plugin(PlayerPlugin)
     .add_plugin(ResetPlugin)
-    .add_plugin(GamePlugin)
+    .add_plugin(LoadLevelPlugin)
+    .add_plugin(NextLevelPlugin)
+    .add_plugin(ContinuePlugin)
+    .add_plugin(PausePlugin)
     .add_plugin(LevelEditorPlugin);
 
     if !cfg!(target_family = "wasm") {

@@ -1,18 +1,16 @@
 use bevy::prelude::*;
 
 use crate::{
-    level_editor,
+    level_editor, load_level,
     ui::{self, main_menu::MainMenuEvent, UI},
 };
-
-use super::state::GameState;
 
 pub fn handle_events(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut state: ResMut<NextState<GameState>>,
     mut input_events: EventReader<MainMenuEvent>,
     mut ui: ResMut<UI>,
+    mut load_event: EventWriter<load_level::LoadEvent>,
     mut editor_load_level: EventWriter<level_editor::LoadEvent>,
 ) {
     if let Some(event) = input_events.iter().last() {
@@ -27,13 +25,9 @@ pub fn handle_events(
                     ui::fuel_bar::create(commands, &asset_server)
                 });
 
-                super::level::start_loading_level(
-                    &mut commands,
-                    &asset_server,
-                    &mut state,
-                    None,
-                    "levels/tutorial_1.json",
-                );
+                load_event.send(load_level::LoadEvent {
+                    path: "levels/tutorial_1.json".into(),
+                });
             }
             MainMenuEvent::LevelEditor => {
                 debug!("level editor");

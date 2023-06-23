@@ -6,7 +6,7 @@ use bevy::{
 
 use crate::{game::state::GameState, hover::HoverEvent, reset::ResetEvent};
 
-#[derive(Component)]
+#[derive(Clone, Copy, Component)]
 pub struct Controlled {
     pub rotating: bool,
     pub forward: bool,
@@ -24,6 +24,22 @@ impl Controlled {
             left: false,
             right: false,
         }
+    }
+
+    pub fn reset(&mut self) {
+        let Controlled {
+            rotating,
+            forward,
+            backward,
+            left,
+            right,
+        } = self;
+
+        *rotating = false;
+        *forward = false;
+        *backward = false;
+        *left = false;
+        *right = false;
     }
 }
 
