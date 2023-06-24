@@ -1,11 +1,3 @@
-use bevy::{
-    ecs::schedule::{LogLevel, ScheduleBuildSettings},
-    prelude::*,
-};
-use bevy_atmosphere::prelude::AtmospherePlugin;
-use bevy_egui::EguiPlugin;
-use bevy_rapier3d::prelude::{NoUserData, RapierPhysicsPlugin};
-
 pub mod camera;
 pub mod collision;
 pub mod colored_wireframe;
@@ -20,6 +12,7 @@ pub mod hover;
 pub mod jump;
 pub mod level;
 pub mod level_editor;
+pub mod level_order;
 pub mod load_level;
 pub mod main_menu;
 pub mod next_level;
@@ -28,6 +21,14 @@ pub mod player;
 pub mod reset;
 pub mod ui;
 pub mod wall;
+
+use bevy::{
+    ecs::schedule::{LogLevel, ScheduleBuildSettings},
+    prelude::*,
+};
+use bevy_atmosphere::prelude::AtmospherePlugin;
+use bevy_egui::EguiPlugin;
+use bevy_rapier3d::prelude::{NoUserData, RapierPhysicsPlugin};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, States)]
 pub enum GameState {
@@ -84,6 +85,7 @@ impl Plugin for GamePlugin {
         .add_plugin(pause::PausePlugin)
         .add_plugin(main_menu::MainMenuPlugin)
         .add_plugin(level_editor::LevelEditorPlugin)
+        .add_plugin(level_order::LevelOrderPlugin)
         .add_startup_system(setup)
         .add_system(collision::handle_player_collisions.in_set(OnUpdate(GameState::Playing)));
 

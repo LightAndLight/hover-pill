@@ -62,7 +62,7 @@ fn handle_start_event(
 ) {
     if let Some(StartEvent { path }) = start_events.iter().last() {
         load_event.send(load_level::LoadEvent {
-            path: "levels/tutorial_1.json".into(),
+            path: "levels/tutorial_1.level.json".into(),
         });
 
         commands.insert_resource(LevelEditor {

@@ -132,7 +132,7 @@ fn handle_events(
                 next_state.set(GameState::Playing);
 
                 load_event.send(load_level::LoadEvent {
-                    path: "levels/tutorial_1.json".into(),
+                    path: "levels/tutorial_1.level.json".into(),
                 });
             }
             MainMenuEvent::LevelEditor => {
@@ -142,7 +142,7 @@ fn handle_events(
                 ui::camera_off(&mut commands, &mut ui);
 
                 start_editor_event.send(level_editor::StartEvent {
-                    path: "levels/tutorial_1.json".into(),
+                    path: "levels/tutorial_1.level.json".into(),
                 })
             }
         }

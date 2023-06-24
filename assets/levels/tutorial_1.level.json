@@ -1,12 +1,15 @@
 {
-  "next_level": "tutorial_3",
   "player_start": [
     0.0,
     3.0,
     0.0
   ],
   "initial_overlay": [
-    "space - hover"
+    "w - move forward",
+    "s - move backward",
+    "a - move left",
+    "d - move right",
+    "right click and drag - look around"
   ],
   "structure": [
     {
@@ -15,7 +18,7 @@
         "position": [
           0.0,
           0.0,
-          0.0
+          2.3333333
         ],
         "rotation": [
           0.0,
@@ -25,27 +28,7 @@
         ],
         "size": [
           4.6666665,
-          4.6666665
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          0.0,
-          0.0,
           9.333333
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "size": [
-          4.6666665,
-          4.6666665
         ]
       }
     },
@@ -55,7 +38,7 @@
         "position": [
           0.0,
           0.0,
-          14.0
+          9.333334
         ],
         "rotation": [
           0.0,

@@ -8,16 +8,15 @@ use crate::{
     wall::{WallBundle, WallType},
 };
 
-#[derive(Serialize, Deserialize, TypeUuid, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, TypeUuid, Clone, Default)]
 #[uuid = "a79e94e4-1d11-4581-82f8-fb82cbc67f43"]
 pub struct Level {
-    pub next_level: Option<String>,
     pub player_start: Vec3,
     pub initial_overlay: Option<Vec<String>>,
     pub structure: Vec<LevelItem>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum LevelItem {
     Wall {
         wall_type: WallType,
@@ -128,14 +127,6 @@ impl LevelItem {
             }
         }
     }
-}
-
-pub struct LoadedLevel {
-    pub handle: Handle<Level>,
-    pub next_level: Option<String>,
-    pub player_start: Vec3,
-    pub structure: Vec<Entity>,
-    pub player: Entity,
 }
 
 pub struct LevelPlugin;

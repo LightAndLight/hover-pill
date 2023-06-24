@@ -16,6 +16,7 @@ pub struct LoadEvent {
 
 #[derive(Resource)]
 pub struct CurrentLevel {
+    pub path: String,
     pub handle: Handle<Level>,
     pub level: Level,
     created: bool,
@@ -29,6 +30,7 @@ pub enum InCurrentLevel {
 
 #[derive(Resource)]
 pub struct LoadingLevel {
+    pub path: String,
     pub handle: Handle<Level>,
 }
 
@@ -41,7 +43,10 @@ fn start_loading(
         trace!("start_loading: {:?}", path);
 
         let handle = asset_server.load(path);
-        commands.insert_resource(LoadingLevel { handle });
+        commands.insert_resource(LoadingLevel {
+            path: path.clone(),
+            handle,
+        });
     }
 }
 
@@ -56,6 +61,7 @@ fn finish_loading(
         commands.remove_resource::<LoadingLevel>();
 
         commands.insert_resource(CurrentLevel {
+            path: loading_level.path.clone(),
             handle: loading_level.handle.clone(),
             level: level.clone(),
             created: false,
@@ -81,6 +87,7 @@ fn hotreload(
             if modified_handle == &current_level.handle {
                 if let Some(level) = assets.get(&current_level.handle) {
                     commands.insert_resource(CurrentLevel {
+                        path: current_level.path.clone(),
                         handle: current_level.handle.clone(),
                         level: level.clone(),
                         created: false,

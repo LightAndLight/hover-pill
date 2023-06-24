@@ -1,9 +1,8 @@
 {
-  "next_level": "level_6",
   "player_start": [
     0.0,
     1.0,
-    -5.0
+    0.0
   ],
   "initial_overlay": null,
   "structure": [
@@ -11,209 +10,9 @@
       "Wall": {
         "wall_type": "Neutral",
         "position": [
-          5.0,
-          0.0,
-          -5.0
-        ],
-        "rotation": [
-          0.0,
           0.0,
           0.0,
           0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          0.0,
-          0.0,
-          -5.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          -5.0,
-          0.0,
-          -5.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          5.0,
-          0.0,
-          0.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          0.0,
-          0.0,
-          0.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          5.0,
-          0.0,
-          5.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          0.0,
-          0.0,
-          5.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          -5.0,
-          0.0,
-          5.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          5.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Avoid",
-        "position": [
-          0.0,
-          -15.0,
-          -5.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          15.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Avoid",
-        "position": [
-          -2.5,
-          -15.0,
-          0.0
-        ],
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "size": [
-          10.0,
-          5.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Avoid",
-        "position": [
-          0.0,
-          -15.0,
-          5.0
         ],
         "rotation": [
           0.0,
@@ -232,8 +31,8 @@
         "wall_type": "Avoid",
         "position": [
           0.0,
-          -30.0,
-          0.0
+          0.0,
+          10.0
         ],
         "rotation": [
           0.0,
@@ -249,11 +48,71 @@
     },
     {
       "Wall": {
-        "wall_type": "Goal",
+        "wall_type": "Avoid",
+        "position": [
+          0.0,
+          5.0,
+          7.5
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          15.0,
+          10.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Avoid",
+        "position": [
+          5.0,
+          5.0,
+          15
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "size": [
+          5.0,
+          5.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Avoid",
         "position": [
           -5.0,
-          -29.95,
+          5.0,
+          15
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
           0.0
+        ],
+        "size": [
+          5.0,
+          5.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Goal",
+        "position": [
+          0.0,
+          5.05,
+          5
         ],
         "rotation": [
           0.0,
@@ -271,9 +130,109 @@
       "Wall": {
         "wall_type": "Neutral",
         "position": [
+          5,
+          2.5,
+          2.5
+        ],
+        "rotation": [
+          0.70710677,
+          0.0,
+          0.0,
+          0.70710677
+        ],
+        "size": [
+          5.0,
+          5.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Neutral",
+        "position": [
+          -5,
+          2.5,
+          2.5
+        ],
+        "rotation": [
+          0.70710677,
+          0.0,
+          0.0,
+          0.70710677
+        ],
+        "size": [
+          5.0,
+          5.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Neutral",
+        "position": [
+          0,
           7.5,
-          -15.0,
+          2.5
+        ],
+        "rotation": [
+          0.70710677,
+          0.0,
+          0.0,
+          0.70710677
+        ],
+        "size": [
+          15.0,
+          5.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Neutral",
+        "position": [
+          0.0,
+          10.0,
+          10.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
           0.0
+        ],
+        "size": [
+          15.0,
+          15.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Neutral",
+        "position": [
+          0.0,
+          5.0,
+          17.5
+        ],
+        "rotation": [
+          0.70710677,
+          0.0,
+          0.0,
+          0.70710677
+        ],
+        "size": [
+          15.0,
+          10.0
+        ]
+      }
+    },
+    {
+      "Wall": {
+        "wall_type": "Neutral",
+        "position": [
+          7.5,
+          5.0,
+          10
         ],
         "rotation": [
           0.0,
@@ -282,7 +241,7 @@
           0.70710677
         ],
         "size": [
-          30.0,
+          10.0,
           15.0
         ]
       }
@@ -292,8 +251,8 @@
         "wall_type": "Neutral",
         "position": [
           -7.5,
-          -15.0,
-          0.0
+          5.0,
+          10
         ],
         "rotation": [
           0.0,
@@ -302,57 +261,17 @@
           0.70710677
         ],
         "size": [
-          30.0,
+          10.0,
           15.0
         ]
       }
     },
     {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          0,
-          -15.0,
-          -7.5
-        ],
-        "rotation": [
-          0.70710677,
-          0.0,
-          0.0,
-          0.70710677
-        ],
-        "size": [
-          15.0,
-          30.0
-        ]
-      }
-    },
-    {
-      "Wall": {
-        "wall_type": "Neutral",
-        "position": [
-          0,
-          -15.0,
-          7.5
-        ],
-        "rotation": [
-          0.70710677,
-          0.0,
-          0.0,
-          0.70710677
-        ],
-        "size": [
-          15.0,
-          30.0
-        ]
-      }
-    },
-    {
       "Light": {
         "position": [
           0.0,
-          -0.5,
-          0
+          9.5,
+          17
         ],
         "intensity": 5000
       }
@@ -361,10 +280,10 @@
       "Light": {
         "position": [
           0.0,
-          -15.5,
+          9.0,
           0
         ],
-        "intensity": 5000
+        "intensity": 1000
       }
     }
   ]
