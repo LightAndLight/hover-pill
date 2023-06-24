@@ -33,9 +33,9 @@ pub mod wall;
 pub enum GameState {
     #[default]
     MainMenu,
-    Loading,
-    Paused,
     Playing,
+    Editing,
+    Testing,
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut ui: ResMut<ui::UI>) {

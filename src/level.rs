@@ -1,12 +1,10 @@
 pub mod asset;
 
-use bevy::{prelude::*, reflect::TypeUuid};
+use bevy::{ecs::system::EntityCommands, prelude::*, reflect::TypeUuid};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    fuel::FuelChanged,
     fuel_ball::FuelBallBundle,
-    player,
     wall::{WallBundle, WallType},
 };
 
@@ -37,6 +35,14 @@ pub enum LevelItem {
 }
 
 impl LevelItem {
+    pub fn position_mut(&mut self) -> &mut Vec3 {
+        match self {
+            LevelItem::Wall { position, .. } => position,
+            LevelItem::FuelBall { position } => position,
+            LevelItem::Light { position, .. } => position,
+        }
+    }
+
     pub fn size(&self) -> Option<Vec2> {
         match self {
             LevelItem::Wall { size, .. } => Some(*size),
@@ -61,12 +67,12 @@ impl LevelItem {
         }
     }
 
-    pub fn spawn(
+    pub fn spawn<'w, 's, 'a>(
         &self,
-        commands: &mut Commands,
+        commands: &'a mut Commands<'w, 's>,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
-    ) -> Entity {
+    ) -> EntityCommands<'w, 's, 'a> {
         match self {
             LevelItem::Wall {
                 wall_type,
@@ -74,30 +80,24 @@ impl LevelItem {
                 rotation,
                 size,
             } => match wall_type {
-                WallType::Neutral => commands
-                    .spawn(WallBundle::neutral(
-                        meshes, materials, *position, *rotation, *size,
-                    ))
-                    .id(),
-                WallType::Avoid => commands
-                    .spawn(WallBundle::avoid(
-                        meshes, materials, *position, *rotation, *size,
-                    ))
-                    .id(),
-                WallType::Goal => commands
-                    .spawn(WallBundle::goal(
-                        meshes, materials, *position, *rotation, *size,
-                    ))
-                    .id(),
+                WallType::Neutral => commands.spawn(WallBundle::neutral(
+                    meshes, materials, *position, *rotation, *size,
+                )),
+                WallType::Avoid => commands.spawn(WallBundle::avoid(
+                    meshes, materials, *position, *rotation, *size,
+                )),
+                WallType::Goal => commands.spawn(WallBundle::goal(
+                    meshes, materials, *position, *rotation, *size,
+                )),
             },
-            LevelItem::FuelBall { position } => commands
-                .spawn(FuelBallBundle::new(meshes, materials, *position))
-                .id(),
+            LevelItem::FuelBall { position } => {
+                commands.spawn(FuelBallBundle::new(meshes, materials, *position))
+            }
             LevelItem::Light {
                 position,
                 intensity,
-            } => commands
-                .spawn(PbrBundle {
+            } => {
+                let mut entity_commands = commands.spawn(PbrBundle {
                     mesh: meshes.add(Mesh::from(shape::UVSphere {
                         radius: 0.1,
                         sectors: 20,
@@ -110,8 +110,9 @@ impl LevelItem {
                     }),
                     transform: Transform::from_translation(*position),
                     ..default()
-                })
-                .with_children(|parent| {
+                });
+
+                entity_commands.with_children(|parent| {
                     parent.spawn(PointLightBundle {
                         point_light: PointLight {
                             intensity: *intensity,
@@ -121,59 +122,12 @@ impl LevelItem {
                         },
                         ..default()
                     });
-                })
-                .id(),
+                });
+
+                entity_commands
+            }
         }
     }
-}
-
-pub struct Entities {
-    pub light: Entity,
-    pub level_items: Vec<Entity>,
-}
-
-impl Entities {
-    pub fn despawn(self, commands: &mut Commands) {
-        commands.entity(self.light).despawn_recursive();
-
-        for level_item in self.level_items {
-            commands.entity(level_item).despawn_recursive();
-        }
-    }
-}
-
-/**
-Postcondition: the order of [`Entities::level_items`] is in the same order as [`Level::structure`].
-*/
-pub fn create_world(
-    commands: &mut Commands,
-    level: &Level,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-) -> Entities {
-    let light = {
-        commands
-            .spawn(DirectionalLightBundle {
-                directional_light: DirectionalLight {
-                    illuminance: 10000.0,
-                    shadows_enabled: true,
-                    ..default()
-                },
-                transform: Transform::from_rotation(Quat::from_rotation_x(
-                    -std::f32::consts::PI / 3.5,
-                )),
-                ..default()
-            })
-            .id()
-    };
-
-    let level_items = level
-        .structure
-        .iter()
-        .map(|item| item.spawn(commands, meshes, materials))
-        .collect();
-
-    Entities { light, level_items }
 }
 
 pub struct LoadedLevel {
@@ -182,48 +136,6 @@ pub struct LoadedLevel {
     pub player_start: Vec3,
     pub structure: Vec<Entity>,
     pub player: Entity,
-}
-
-pub fn create(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-    fuel_changed: &mut EventWriter<FuelChanged>,
-    handle: Handle<Level>,
-    level: &Level,
-) -> LoadedLevel {
-    let entities: Vec<Entity> = {
-        let Entities {
-            light,
-            mut level_items,
-        } = create_world(commands, level, meshes, materials);
-        level_items.push(light);
-        level_items
-    };
-
-    let player = player::spawn_player(
-        commands,
-        meshes,
-        materials,
-        Transform::from_translation(level.player_start),
-        Some(fuel_changed),
-    );
-
-    LoadedLevel {
-        handle,
-        next_level: level.next_level.clone(),
-        player_start: level.player_start,
-        structure: entities,
-        player,
-    }
-}
-
-pub fn clear(commands: &mut Commands, level: &LoadedLevel) {
-    commands.entity(level.player).despawn_recursive();
-
-    for entity in &level.structure {
-        commands.entity(*entity).despawn_recursive();
-    }
 }
 
 pub struct LevelPlugin;

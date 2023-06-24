@@ -2,7 +2,10 @@ use bevy::prelude::*;
 
 use crate::{
     fuel::FuelChanged,
-    level::{self, Level},
+    level::Level,
+    level_editor,
+    pause::PauseEvent,
+    player,
     ui::{self, UI},
     GameState,
 };
@@ -13,7 +16,15 @@ pub struct LoadEvent {
 
 #[derive(Resource)]
 pub struct CurrentLevel {
-    pub value: crate::level::LoadedLevel,
+    pub handle: Handle<Level>,
+    pub level: Level,
+    created: bool,
+}
+
+#[derive(Component)]
+pub enum InCurrentLevel {
+    NoLocation,
+    LevelItem(usize),
 }
 
 #[derive(Resource)]
@@ -24,129 +35,141 @@ pub struct LoadingLevel {
 fn start_loading(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut state: ResMut<NextState<GameState>>,
-    current_level: Option<Res<CurrentLevel>>,
     mut load_events: EventReader<LoadEvent>,
 ) {
     if let Some(LoadEvent { path }) = load_events.iter().last() {
-        if let Some(current_level) = current_level {
-            level::clear(&mut commands, &current_level.value);
-        }
+        trace!("start_loading: {:?}", path);
 
         let handle = asset_server.load(path);
-
         commands.insert_resource(LoadingLevel { handle });
-        state.set(GameState::Loading);
     }
 }
 
 fn finish_loading(
-    mut state: ResMut<NextState<GameState>>,
-    loading_level: Res<LoadingLevel>,
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     assets: Res<Assets<Level>>,
-    mut ui: ResMut<UI>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut fuel_changed: EventWriter<FuelChanged>,
+    loading_level: Res<LoadingLevel>,
 ) {
     if let Some(level) = assets.get(&loading_level.handle) {
+        trace!("finish_loading");
+
         commands.remove_resource::<LoadingLevel>();
 
-        let loaded_level = level::create(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &mut fuel_changed,
-            loading_level.handle.clone(),
-            level,
-        );
-
         commands.insert_resource(CurrentLevel {
-            value: loaded_level,
+            handle: loading_level.handle.clone(),
+            level: level.clone(),
+            created: false,
         });
-
-        if let Some(overlay_text) = &level.initial_overlay {
-            state.set(GameState::Paused);
-
-            ui::overlay::level_overview::display(
-                &asset_server,
-                &mut commands,
-                &mut ui,
-                overlay_text,
-            );
-        } else {
-            state.set(GameState::Playing);
-        }
     }
 }
 
 fn hotreload(
     mut commands: Commands,
-    mut state: ResMut<NextState<GameState>>,
-    asset_server: Res<AssetServer>,
     assets: Res<Assets<Level>>,
     mut asset_event: EventReader<AssetEvent<Level>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut ui: ResMut<UI>,
-    mut fuel_changed: EventWriter<FuelChanged>,
-    current_level: Option<Res<CurrentLevel>>,
+    current_level: Res<CurrentLevel>,
 ) {
-    if let Some(current_level) = current_level {
-        for event in asset_event.iter() {
-            debug!("level asset event: {:?}", event);
+    for event in asset_event.iter() {
+        debug!("level asset event: {:?}", event);
 
-            if let AssetEvent::Modified {
-                handle: modified_handle,
-            } = event
-            {
-                debug!("asset modified: {:?}", modified_handle);
+        if let AssetEvent::Modified {
+            handle: modified_handle,
+        } = event
+        {
+            debug!("asset modified: {:?}", modified_handle);
 
-                if modified_handle == &current_level.value.handle {
-                    if let Some(level) = assets.get(&current_level.value.handle) {
-                        level::clear(&mut commands, &current_level.value);
-
-                        {
-                            let commands: &mut Commands = &mut commands;
-                            let meshes: &mut Assets<Mesh> = &mut meshes;
-                            let materials: &mut Assets<StandardMaterial> = &mut materials;
-                            let fuel_changed: &mut EventWriter<FuelChanged> = &mut fuel_changed;
-                            let state: &mut NextState<GameState> = &mut state;
-                            let asset_server: &AssetServer = &asset_server;
-                            let ui: &mut UI = &mut ui;
-                            let handle = &current_level.value.handle;
-                            let loaded_level = level::create(
-                                commands,
-                                meshes,
-                                materials,
-                                fuel_changed,
-                                handle.clone(),
-                                level,
-                            );
-
-                            commands.insert_resource(CurrentLevel {
-                                value: loaded_level,
-                            });
-
-                            if let Some(overlay_text) = &level.initial_overlay {
-                                state.set(GameState::Paused);
-
-                                ui::overlay::level_overview::display(
-                                    asset_server,
-                                    commands,
-                                    ui,
-                                    overlay_text,
-                                );
-                            } else {
-                                state.set(GameState::Playing);
-                            }
-                        };
-                    }
+            if modified_handle == &current_level.handle {
+                if let Some(level) = assets.get(&current_level.handle) {
+                    commands.insert_resource(CurrentLevel {
+                        handle: current_level.handle.clone(),
+                        level: level.clone(),
+                        created: false,
+                    });
                 }
             }
         }
+    }
+}
+
+fn setup_current_level(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    state: Res<State<GameState>>,
+    mut ui: ResMut<UI>,
+    mut fuel_changed: EventWriter<FuelChanged>,
+    mut current_level: ResMut<CurrentLevel>,
+    mut pause_event: EventWriter<PauseEvent>,
+    in_current_level_query: Query<Entity, With<InCurrentLevel>>,
+) {
+    if !current_level.created {
+        trace!("clearing level entities");
+
+        for entity in in_current_level_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+
+        commands.spawn((
+            DirectionalLightBundle {
+                directional_light: DirectionalLight {
+                    illuminance: 10000.0,
+                    shadows_enabled: true,
+                    ..default()
+                },
+                transform: Transform::from_rotation(Quat::from_rotation_x(
+                    -std::f32::consts::PI / 3.5,
+                )),
+                ..default()
+            },
+            InCurrentLevel::NoLocation,
+        ));
+
+        current_level
+            .level
+            .structure
+            .iter()
+            .enumerate()
+            .for_each(|(index, item)| {
+                item.spawn(&mut commands, &mut meshes, &mut materials)
+                    .insert(InCurrentLevel::LevelItem(index));
+            });
+
+        match state.0 {
+            GameState::MainMenu => panic!("setup_current_level called in GameState::MainMenu"),
+            GameState::Playing => {
+                player::spawn_player(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    Transform::from_translation(current_level.level.player_start),
+                    Some(&mut fuel_changed),
+                )
+                .insert(InCurrentLevel::NoLocation);
+
+                if let Some(overlay_text) = &current_level.level.initial_overlay {
+                    pause_event.send(PauseEvent::Pause);
+
+                    ui::overlay::level_overview::display(
+                        &asset_server,
+                        &mut commands,
+                        &mut ui,
+                        overlay_text,
+                    );
+                }
+            }
+            GameState::Testing => {}
+            GameState::Editing => {
+                level_editor::spawn_player_token(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    current_level.level.player_start,
+                );
+            }
+        }
+
+        current_level.created = true;
     }
 }
 
@@ -157,6 +180,21 @@ impl Plugin for LoadLevelPlugin {
         app.add_event::<LoadEvent>()
             .add_system(start_loading)
             .add_system(finish_loading.run_if(resource_exists::<LoadingLevel>()))
-            .add_system(hotreload);
+            .add_system(hotreload.run_if(resource_exists::<CurrentLevel>()))
+            .add_system(
+                setup_current_level
+                    /*
+                    Adding this to `CoreSet::PreUpdate` ensures it runs before systems that are added
+                    as normal, such as `level_editor::annotate_level_items`. If
+                    `setup_current_level` and `level_editor::annotate_level_items` run
+                    concurrently then it's possible to annotate entities that have just been
+                    deleted. They must be run sequentially, but in what order? It's hard toa
+                    decide and seems arbitrary. I don't want to expose these systems to allow
+                    explicit use of `before`/`after`. Putting them in separate base sets seems
+                    like a hacky way to resolve the problem.
+                    */
+                    .in_base_set(CoreSet::PreUpdate)
+                    .run_if(resource_exists::<CurrentLevel>()),
+            );
     }
 }

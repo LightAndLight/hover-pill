@@ -3,10 +3,10 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{
     controls::Controlled,
+    pause::PauseEvent,
     reset::ResetEvent,
     ui::{self, UI},
     wall::{Wall, WallType},
-    GameState,
 };
 
 enum PlayerHit {
@@ -46,10 +46,10 @@ fn check_player_hit(
 }
 
 pub fn handle_player_collisions(
-    mut state: ResMut<NextState<GameState>>,
     mut collision_events: EventReader<CollisionEvent>,
     check: (Query<&Controlled>, Query<&Wall>),
     mut goal: (Res<AssetServer>, Commands, ResMut<UI>),
+    mut pause_event: EventWriter<PauseEvent>,
     mut reset_event: EventWriter<ResetEvent>,
 ) {
     for event in collision_events.iter() {
@@ -62,8 +62,7 @@ pub fn handle_player_collisions(
                         reset_event.send(ResetEvent);
                     }
                     PlayerHit::Goal => {
-                        state.set(GameState::Paused);
-
+                        pause_event.send(PauseEvent::Pause);
                         ui::overlay::level_complete::display(&goal.0, &mut goal.1, &mut goal.2);
                     }
                 }

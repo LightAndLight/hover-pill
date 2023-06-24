@@ -17,7 +17,7 @@ fn reset_player(
 ) {
     if let Some(ResetEvent) = reset_events.iter().last() {
         for (mut transform, mut fuel) in &mut query {
-            transform.translation = current_level.value.player_start;
+            transform.translation = current_level.level.player_start;
 
             let amount = 1.0 - fuel.value;
             add_fuel(&mut fuel, amount, &mut fuel_changed_event);

@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     level_editor, load_level, ui,
     ui::{button, UI},
+    GameState,
 };
 
 pub fn create(asset_server: &AssetServer, commands: &mut Commands) -> Entity {
@@ -112,13 +113,14 @@ fn handle_events(
     asset_server: Res<AssetServer>,
     mut input_events: EventReader<MainMenuEvent>,
     mut ui: ResMut<UI>,
+    mut next_state: ResMut<NextState<GameState>>,
     mut load_event: EventWriter<load_level::LoadEvent>,
-    mut editor_load_level: EventWriter<level_editor::LoadEvent>,
+    mut start_editor_event: EventWriter<level_editor::StartEvent>,
 ) {
     if let Some(event) = input_events.iter().last() {
         match event {
             MainMenuEvent::Play => {
-                debug!("play");
+                trace!("play clicked");
 
                 ui::clear(&mut commands, &mut ui);
                 ui::camera_off(&mut commands, &mut ui);
@@ -127,17 +129,19 @@ fn handle_events(
                     ui::fuel_bar::create(commands, &asset_server)
                 });
 
+                next_state.set(GameState::Playing);
+
                 load_event.send(load_level::LoadEvent {
                     path: "levels/tutorial_1.json".into(),
                 });
             }
             MainMenuEvent::LevelEditor => {
-                debug!("level editor");
+                trace!("level editor clicked");
 
                 ui::clear(&mut commands, &mut ui);
                 ui::camera_off(&mut commands, &mut ui);
 
-                editor_load_level.send(level_editor::LoadEvent {
+                start_editor_event.send(level_editor::StartEvent {
                     path: "levels/tutorial_1.json".into(),
                 })
             }

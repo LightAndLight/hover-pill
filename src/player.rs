@@ -1,4 +1,4 @@
-use bevy::{input::mouse::MouseMotion, prelude::*};
+use bevy::{ecs::system::EntityCommands, input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::prelude::*;
 
 use crate::{
@@ -13,19 +13,29 @@ pub const CAPSULE_RADIUS: f32 = 0.5;
 pub const CAPSULE_DEPTH: f32 = 2.0 * CAPSULE_RADIUS;
 pub const CAPSULE_COLOR: Color = Color::rgb(0.8, 0.7, 0.3);
 
-pub fn spawn_player(
-    commands: &mut Commands,
+#[derive(Component)]
+pub struct Player;
+
+pub fn spawn_player<'w, 's, 'a>(
+    commands: &'a mut Commands<'w, 's>,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     transform: Transform,
     fuel_changed: Option<&mut EventWriter<FuelChanged>>,
-) -> Entity {
+) -> EntityCommands<'w, 's, 'a> {
     let initial_jump_impulse = 5. * Vec3::Y;
 
     let fuel = Fuel { value: 1.0 };
 
-    let entity = commands
-        .spawn(PbrBundle {
+    if let Some(fuel_changed) = fuel_changed {
+        fuel_changed.send(FuelChanged {
+            new_value: fuel.value,
+        });
+    }
+
+    let mut entity_commands = commands.spawn((
+        Player,
+        PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
                 radius: CAPSULE_RADIUS,
                 depth: CAPSULE_DEPTH,
@@ -34,7 +44,10 @@ pub fn spawn_player(
             material: materials.add(CAPSULE_COLOR.into()),
             transform,
             ..default()
-        })
+        },
+    ));
+
+    entity_commands
         .insert(Collider::capsule_y(CAPSULE_DEPTH / 2.0, CAPSULE_RADIUS))
         .insert(ActiveEvents::COLLISION_EVENTS)
         .insert(RigidBody::Dynamic)
@@ -52,16 +65,9 @@ pub fn spawn_player(
         .insert(Hovering { value: false })
         .with_children(|parent| {
             parent.spawn(CameraBundle::new(Transform::from_xyz(0.0, 4.0, -5.0)));
-        })
-        .id();
-
-    if let Some(fuel_changed) = fuel_changed {
-        fuel_changed.send(FuelChanged {
-            new_value: fuel.value,
         });
-    }
 
-    entity
+    entity_commands
 }
 
 fn move_controlled(

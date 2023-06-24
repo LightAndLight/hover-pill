@@ -4,7 +4,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 
-use crate::{hover::HoverEvent, reset::ResetEvent, GameState};
+use crate::{hover::HoverEvent, reset::ResetEvent};
 
 #[derive(Clone, Copy, Component)]
 pub struct Controlled {
@@ -106,26 +106,32 @@ fn handle_jump(keys: Res<Input<KeyCode>>, mut hover_event: EventWriter<HoverEven
 }
 
 fn handle_rotate(
-    mut windows: Query<&mut Window, With<PrimaryWindow>>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut query: Query<&mut Controlled>,
 ) {
     for mouse_button_event in mouse_button_events.iter() {
         if let MouseButton::Right = mouse_button_event.button {
-            let mut window = windows.get_single_mut().unwrap();
             for mut controlled in query.iter_mut() {
                 match mouse_button_event.state {
                     ButtonState::Pressed => {
                         controlled.rotating = true;
-                        window.cursor.visible = false;
                     }
                     ButtonState::Released => {
                         controlled.rotating = false;
-                        window.cursor.visible = true;
                     }
                 };
             }
         }
+    }
+}
+
+fn hide_cursor(
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut query: Query<&mut Controlled>,
+) {
+    let mut window = windows.get_single_mut().unwrap();
+    for controlled in query.iter_mut() {
+        window.cursor.visible = !controlled.rotating;
     }
 }
 
@@ -135,13 +141,32 @@ pub fn handle_reset(keys: Res<Input<KeyCode>>, mut reset_event: EventWriter<Rese
     }
 }
 
+#[derive(Resource)]
+pub struct ControlsConfig {
+    pub enabled: bool,
+}
+
+impl Default for ControlsConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, SystemSet)]
+struct ActiveSet;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, SystemSet)]
+struct PassiveSet;
+
 pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            (handle_movement, handle_jump, handle_rotate, handle_reset)
-                .in_set(OnUpdate(GameState::Playing)),
-        );
+        app.init_resource::<ControlsConfig>()
+            .configure_set(ActiveSet.run_if(|config: Res<ControlsConfig>| config.enabled))
+            .add_systems(
+                (handle_movement, handle_jump, handle_rotate, handle_reset).in_set(ActiveSet),
+            )
+            .add_system(hide_cursor.after(handle_rotate).in_set(PassiveSet));
     }
 }
