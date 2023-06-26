@@ -1,37 +1,54 @@
-use bevy::{input::mouse::MouseMotion, prelude::*};
+use bevy::{ecs::system::EntityCommands, input::mouse::MouseMotion, prelude::*};
 use bevy_rapier3d::prelude::*;
 
 use crate::{
-    camera::{CameraBundle, CameraPlugin},
-    controls::{Controlled, ControlsPlugin, Forward, Speed},
-    fuel::Fuel,
+    camera::CameraBundle,
+    controls::{Controlled, Forward, Speed},
+    fuel::{Fuel, FuelChanged},
     hover::Hovering,
     jump::JumpImpulse,
 };
 
-pub fn spawn_player(
-    commands: &mut Commands,
+pub const CAPSULE_RADIUS: f32 = 0.5;
+pub const CAPSULE_DEPTH: f32 = 2.0 * CAPSULE_RADIUS;
+pub const CAPSULE_COLOR: Color = Color::rgb(0.8, 0.7, 0.3);
+
+#[derive(Component)]
+pub struct Player;
+
+pub fn spawn_player<'w, 's, 'a>(
+    commands: &'a mut Commands<'w, 's>,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     transform: Transform,
-) -> Entity {
-    let capsule_radius = 0.5;
-    let capsule_depth = 2.0 * capsule_radius;
-
+    fuel_changed: Option<&mut EventWriter<FuelChanged>>,
+) -> EntityCommands<'w, 's, 'a> {
     let initial_jump_impulse = 5. * Vec3::Y;
 
-    commands
-        .spawn_bundle(PbrBundle {
+    let fuel = Fuel { value: 1.0 };
+
+    if let Some(fuel_changed) = fuel_changed {
+        fuel_changed.send(FuelChanged {
+            new_value: fuel.value,
+        });
+    }
+
+    let mut entity_commands = commands.spawn((
+        Player,
+        PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Capsule {
-                radius: capsule_radius,
-                depth: capsule_depth,
+                radius: CAPSULE_RADIUS,
+                depth: CAPSULE_DEPTH,
                 ..default()
             })),
-            material: materials.add(Color::rgb(0.8, 0.7, 0.3).into()),
+            material: materials.add(CAPSULE_COLOR.into()),
             transform,
             ..default()
-        })
-        .insert(Collider::capsule_y(capsule_depth / 2.0, capsule_radius))
+        },
+    ));
+
+    entity_commands
+        .insert(Collider::capsule_y(CAPSULE_DEPTH / 2.0, CAPSULE_RADIUS))
         .insert(ActiveEvents::COLLISION_EVENTS)
         .insert(RigidBody::Dynamic)
         .insert(ColliderMassProperties::Density(1.0))
@@ -44,15 +61,16 @@ pub fn spawn_player(
         .insert(Forward { value: Vec3::Z })
         .insert(Speed { value: 3.5 })
         .insert(Controlled::default())
-        .insert(Fuel { value: 1.0 })
+        .insert(fuel)
         .insert(Hovering { value: false })
         .with_children(|parent| {
-            parent.spawn_bundle(CameraBundle::new(Transform::from_xyz(0.0, 4.0, -5.0)));
-        })
-        .id()
+            parent.spawn(CameraBundle::new(Transform::from_xyz(0.0, 4.0, -5.0)));
+        });
+
+    entity_commands
 }
 
-pub fn move_controlled(
+fn move_controlled(
     time: Res<Time>,
     mut controlled_query: Query<(&Controlled, &Speed, &Forward, &mut Transform)>,
 ) {
@@ -83,7 +101,7 @@ pub fn move_controlled(
     }
 }
 
-pub fn rotate_controlled(
+fn rotate_controlled(
     mut mouse_motion_events: EventReader<MouseMotion>,
     mut query: Query<(&Controlled, &mut Forward, &mut Transform, &Children)>,
     mut camera_query: Query<&mut Transform, (With<Camera>, Without<Controlled>)>,
@@ -115,9 +133,7 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(ControlsPlugin)
-            .add_plugin(CameraPlugin)
-            .add_system(move_controlled)
+        app.add_system(move_controlled)
             .add_system(rotate_controlled);
     }
 }

@@ -1,11 +1,12 @@
 use bevy::{
     input::{mouse::MouseButtonInput, ButtonState},
     prelude::*,
+    window::PrimaryWindow,
 };
 
-use crate::hover::HoverEvent;
+use crate::{hover::HoverEvent, reset::ResetEvent};
 
-#[derive(Component)]
+#[derive(Clone, Copy, Component)]
 pub struct Controlled {
     pub rotating: bool,
     pub forward: bool,
@@ -23,6 +24,22 @@ impl Controlled {
             left: false,
             right: false,
         }
+    }
+
+    pub fn reset(&mut self) {
+        let Controlled {
+            rotating,
+            forward,
+            backward,
+            left,
+            right,
+        } = self;
+
+        *rotating = false;
+        *forward = false;
+        *backward = false;
+        *left = false;
+        *right = false;
     }
 }
 
@@ -89,22 +106,18 @@ fn handle_jump(keys: Res<Input<KeyCode>>, mut hover_event: EventWriter<HoverEven
 }
 
 fn handle_rotate(
-    mut windows: ResMut<Windows>,
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut query: Query<&mut Controlled>,
 ) {
     for mouse_button_event in mouse_button_events.iter() {
         if let MouseButton::Right = mouse_button_event.button {
-            let window = windows.primary_mut();
             for mut controlled in query.iter_mut() {
                 match mouse_button_event.state {
                     ButtonState::Pressed => {
                         controlled.rotating = true;
-                        window.set_cursor_visibility(false);
                     }
                     ButtonState::Released => {
                         controlled.rotating = false;
-                        window.set_cursor_visibility(true);
                     }
                 };
             }
@@ -112,12 +125,48 @@ fn handle_rotate(
     }
 }
 
+fn hide_cursor(
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut query: Query<&mut Controlled>,
+) {
+    let mut window = windows.get_single_mut().unwrap();
+    for controlled in query.iter_mut() {
+        window.cursor.visible = !controlled.rotating;
+    }
+}
+
+pub fn handle_reset(keys: Res<Input<KeyCode>>, mut reset_event: EventWriter<ResetEvent>) {
+    if keys.just_pressed(KeyCode::R) {
+        reset_event.send(ResetEvent)
+    }
+}
+
+#[derive(Resource)]
+pub struct ControlsConfig {
+    pub enabled: bool,
+}
+
+impl Default for ControlsConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, SystemSet)]
+struct ActiveSet;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, SystemSet)]
+struct PassiveSet;
+
 pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(handle_movement)
-            .add_system(handle_jump)
-            .add_system(handle_rotate);
+        app.init_resource::<ControlsConfig>()
+            .configure_set(ActiveSet.run_if(|config: Res<ControlsConfig>| config.enabled))
+            .add_systems(
+                (handle_movement, handle_jump, handle_rotate, handle_reset).in_set(ActiveSet),
+            )
+            .add_system(hide_cursor.after(handle_rotate).in_set(PassiveSet));
     }
 }

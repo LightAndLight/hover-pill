@@ -33,14 +33,14 @@ impl CameraBundle {
                 transform: transform.looking_at(Vec3::Y, Vec3::Y),
                 ..default()
             },
-            atmosphere_camera: AtmosphereCamera(None),
+            atmosphere_camera: AtmosphereCamera::default(),
             zoom: Zoom,
             camera: Camera,
         }
     }
 }
 
-pub fn scroll_zoom(
+fn scroll_zoom(
     mut scroll_events: EventReader<MouseWheel>,
     mut query: Query<&mut Transform, With<Zoom>>,
 ) {
@@ -55,15 +55,18 @@ pub fn scroll_zoom(
         })
         .sum();
 
-    for mut transform in query.iter_mut() {
-        let translation = transform.translation;
-        transform.translation += 0.08 * scroll_amount * -translation;
+    if scroll_amount != 0.0 {
+        for mut transform in query.iter_mut() {
+            debug!("zooming camera");
+            let translation = transform.translation;
+            transform.translation += 0.08 * scroll_amount * -translation;
+        }
     }
 }
 
-pub struct CameraPlugin;
+pub struct ZoomPlugin;
 
-impl Plugin for CameraPlugin {
+impl Plugin for ZoomPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(scroll_zoom);
     }

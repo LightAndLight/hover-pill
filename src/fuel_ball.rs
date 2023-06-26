@@ -48,11 +48,11 @@ impl FuelBallBundle {
     }
 }
 
-pub fn refuel(
+fn refuel(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
     mut fuel_query: Query<&mut Fuel, Without<FuelBall>>,
-    ball_query: Query<&FuelBall>,
+    mut ball_query: Query<(&FuelBall, &mut Visibility)>,
     mut fuel_changed: EventWriter<FuelChanged>,
 ) {
     for collision_event in collision_events.iter() {
@@ -63,17 +63,19 @@ pub fn refuel(
                 (*entity2, *entity1)
             };
 
-            if let (Ok(mut fuel), Ok(refuel_ball)) =
-                (fuel_query.get_mut(fuel_entity), ball_query.get(ball_entity))
-            {
+            if let (Ok(mut fuel), Ok((refuel_ball, mut visibility))) = (
+                fuel_query.get_mut(fuel_entity),
+                ball_query.get_mut(ball_entity),
+            ) {
                 add_fuel(&mut fuel, refuel_ball.amount, &mut fuel_changed);
-                commands.entity(ball_entity).despawn();
+                *visibility = Visibility::Hidden;
+                commands.entity(ball_entity).remove::<Collider>();
             }
         }
     }
 }
 
-pub fn rotate(time: Res<Time>, mut query: Query<&mut Transform, With<FuelBall>>) {
+fn rotate(time: Res<Time>, mut query: Query<&mut Transform, With<FuelBall>>) {
     let radians_per_second = 0.6;
     let delta_seconds = time.delta_seconds();
     for mut transform in &mut query {

@@ -15,3 +15,6 @@ If something's only happening in one place there should probably only be one sys
 for it. e.g. button presses - there is conceptually a single stream of button presses,
 so there should be a single system that generates button press events. Then everything
 that needs to respond to button presses reads from this stream.
+
+https://github.com/fishfolk/punchy and https://github.com/janhohenheim/foxtrot seem
+like good references for architecture.
