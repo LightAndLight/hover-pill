@@ -1,0 +1,3 @@
+#! /usr/bin/env bash
+
+nix shell nixpkgs#python3 -c python -m http.server -d . 8080
