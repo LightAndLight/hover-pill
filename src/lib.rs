@@ -59,10 +59,21 @@ impl Plugin for GamePlugin {
                 ..default()
             });
         })
-        .add_plugins(DefaultPlugins.set(AssetPlugin {
-            watch_for_changes: true,
-            asset_folder: config.asset_dir.clone(),
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(AssetPlugin {
+                    watch_for_changes: true,
+                    asset_folder: config.asset_dir.clone(),
+                })
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Hover Pill".to_string(),
+                        canvas: Some("app".to_string()),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+        )
         .add_state::<GameState>()
         .insert_resource(config)
         .insert_resource(colored_wireframe::ColoredWireframeConfig { enabled: true })
