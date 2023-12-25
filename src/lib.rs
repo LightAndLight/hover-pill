@@ -68,7 +68,7 @@ impl Plugin for GamePlugin {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Hover Pill".to_string(),
-                        canvas: Some("app".to_string()),
+                        canvas: Some("#app".to_string()),
                         ..default()
                     }),
                     ..default()
